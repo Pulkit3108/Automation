@@ -1,0 +1,18 @@
+# Copy this file to the location printed by `naukri-auto configure`.
+# Use an absolute path. Do not place your resume inside this repository.
+resume_path = "C:\\Users\\you\\Documents\\resume.pdf"
+headless = true
+timeout_seconds = 45
+artifact_retention_days = 14
+max_resume_mb = 5
+
+[notification]
+enabled = false
+base_url = "https://ntfy.sh"
+topic = ""
+
+[schedule]
+frequency = "daily"
+time = "09:00"
+days = []
+wake_computer = true
