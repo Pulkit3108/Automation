@@ -16,7 +16,7 @@ class FakeBrowser:
         self.page = object()
         self.captured = False
 
-    def __enter__(self) -> "FakeBrowser":
+    def __enter__(self) -> FakeBrowser:
         return self
 
     def __exit__(self, *args: Any) -> None:

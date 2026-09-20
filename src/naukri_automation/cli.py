@@ -11,7 +11,6 @@ from pathlib import Path
 from naukri_automation import __version__
 from naukri_automation.browser_session import BrowserDependencyError, BrowserSession
 from naukri_automation.config import (
-    DAY_NAMES,
     AppConfig,
     ConfigurationError,
     NotificationConfig,
@@ -20,14 +19,14 @@ from naukri_automation.config import (
     resolve_config_path,
     write_config,
 )
-from naukri_automation.naukri_site import AuthState, LOGIN_URL, NaukriSite
+from naukri_automation.naukri_site import LOGIN_URL, AuthState, NaukriSite
 from naukri_automation.paths import AppPaths, get_app_paths
+from naukri_automation.run_lock import AlreadyRunningError, RunLock
 from naukri_automation.scheduling.windows import (
     SchedulerError,
     WindowsScheduler,
     build_task_xml,
 )
-from naukri_automation.run_lock import AlreadyRunningError, RunLock
 from naukri_automation.workflow import execute
 
 LOGGER = logging.getLogger(__name__)
@@ -151,6 +150,9 @@ def _doctor(config_path: Path, paths: AppPaths) -> int:
             "installed" if playwright_present else "install project dependencies",
         )
     )
+    if playwright_present:
+        browser_ready, browser_detail = _playwright_browser_check()
+        checks.append(("Playwright Chromium", browser_ready, browser_detail))
     scheduler_present = sys.platform != "win32" or shutil.which("schtasks.exe") is not None
     checks.append(
         (
@@ -167,9 +169,20 @@ def _doctor(config_path: Path, paths: AppPaths) -> int:
     for name, passed, detail in checks:
         failed = failed or not passed
         print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
-    if playwright_present:
-        print("[INFO] Browser check: run 'playwright install chromium' after installation")
     return 1 if failed else 0
+
+
+def _playwright_browser_check() -> tuple[bool, str]:
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as playwright:
+            executable = Path(playwright.chromium.executable_path)
+        if executable.is_file():
+            return True, str(executable)
+        return False, "browser is missing; run 'playwright install chromium'"
+    except Exception as error:
+        return False, f"browser check failed: {type(error).__name__}"
 
 
 def _login(config_path: Path, paths: AppPaths) -> int:
@@ -178,26 +191,25 @@ def _login(config_path: Path, paths: AppPaths) -> int:
         raise ConfigurationError("interactive login requires a terminal")
     paths.ensure_runtime_dirs()
     try:
-        with RunLock(paths.run_lock):
-            with BrowserSession(
-                paths.browser_profile,
-                headless=False,
-                timeout_seconds=config.timeout_seconds,
-            ) as session:
-                session.page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        with RunLock(paths.run_lock), BrowserSession(
+            paths.browser_profile,
+            headless=False,
+            timeout_seconds=config.timeout_seconds,
+        ) as session:
+            session.page.goto(LOGIN_URL, wait_until="domcontentloaded")
+            print(
+                "Complete Naukri login in the browser. "
+                "CAPTCHA and MFA must be completed manually."
+            )
+            input("Press Enter after the profile is visible...")
+            site = NaukriSite(session.page, timeout_seconds=config.timeout_seconds)
+            site.open_profile()
+            if site.auth_state() != AuthState.AUTHENTICATED:
                 print(
-                    "Complete Naukri login in the browser. "
-                    "CAPTCHA and MFA must be completed manually."
+                    "Login was not confirmed. "
+                    "The browser profile was retained for another attempt."
                 )
-                input("Press Enter after the profile is visible...")
-                site = NaukriSite(session.page, timeout_seconds=config.timeout_seconds)
-                site.open_profile()
-                if site.auth_state() != AuthState.AUTHENTICATED:
-                    print(
-                        "Login was not confirmed. "
-                        "The browser profile was retained for another attempt."
-                    )
-                    return 3
+                return 3
     except AlreadyRunningError as error:
         raise ConfigurationError("another login or automation run is active") from error
     print("Login confirmed; the dedicated browser profile is ready.")

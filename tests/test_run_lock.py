@@ -12,10 +12,12 @@ class RunLockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             lock_path = Path(directory) / "run.lock"
 
-            with RunLock(lock_path):
-                with self.assertRaises(AlreadyRunningError):
-                    with RunLock(lock_path):
-                        self.fail("second lock should not be acquired")
+            with (
+                RunLock(lock_path),
+                self.assertRaises(AlreadyRunningError),
+                RunLock(lock_path),
+            ):
+                self.fail("second lock should not be acquired")
 
             self.assertFalse(lock_path.exists())
 

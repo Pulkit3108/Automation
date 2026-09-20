@@ -44,7 +44,7 @@ class RunResult:
     @classmethod
     def create(
         cls, outcome: Outcome, message: str, artifact_dir: Path | None = None
-    ) -> "RunResult":
+    ) -> RunResult:
         return cls(
             outcome=outcome,
             message=message,

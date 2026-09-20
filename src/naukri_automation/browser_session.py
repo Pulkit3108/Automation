@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -25,7 +26,7 @@ class BrowserSession:
         self.page: Any = None
         self._tracing = False
 
-    def __enter__(self) -> "BrowserSession":
+    def __enter__(self) -> BrowserSession:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as error:
@@ -73,10 +74,8 @@ class BrowserSession:
     def capture_failure(self, artifact_dir: Path) -> None:
         artifact_dir.mkdir(parents=True, exist_ok=True)
         if self.page is not None:
-            try:
+            with suppress(Exception):
                 self.page.screenshot(path=artifact_dir / "failure.png", full_page=True)
-            except Exception:
-                pass
         if self._tracing:
             try:
                 self.context.tracing.stop(path=artifact_dir / "trace.zip")

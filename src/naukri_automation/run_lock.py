@@ -20,7 +20,7 @@ class RunLock(AbstractContextManager["RunLock"]):
         self.stale_after_seconds = stale_after_seconds
         self._acquired = False
 
-    def __enter__(self) -> "RunLock":
+    def __enter__(self) -> RunLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self.path.mkdir()

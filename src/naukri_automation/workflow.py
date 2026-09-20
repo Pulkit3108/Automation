@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from naukri_automation.browser_session import BrowserDependencyError, BrowserSession
 from naukri_automation.config import AppConfig, ConfigurationError
