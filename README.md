@@ -5,51 +5,29 @@ A Windows-first, cross-platform Python application for updating a configured res
 The application performs one run and exits. Windows Task Scheduler owns the schedule, so no Python process needs to remain running all day. Manual runs are supported on Windows, macOS, and Linux.
 
 > [!IMPORTANT]
-> The login, headed dry run, and one controlled upload have been verified on macOS with Google Chrome. Every new machine and account must still pass `doctor`, interactive login, and a headed dry run before scheduling a real upload.
+> A real upload changes the remote Naukri profile. On every new machine and account, run `doctor`, interactive login, and a headed dry run before the first upload.
 
-## Current Status
+## Features
 
-Implemented:
+- named profiles with separate credentials, résumés, browser sessions, and schedules;
+- secure password storage through the operating-system keyring;
+- managed résumé import, selection, and removal;
+- interactive login with persistent browser sessions;
+- side-effect-free readiness checks and headed dry runs;
+- one-shot uploads with post-upload verification, structured results, and failure diagnostics;
+- optional ntfy-compatible notifications;
+- Windows Task Scheduler integration for daily or weekly execution.
 
-- isolated named profiles with typed configuration and managed résumé collections;
-- OS-keyring credential storage with hidden password prompts;
-- platform-appropriate configuration and data directories;
-- dedicated Playwright browser profile;
-- interactive login bootstrap;
-- side-effect-safe `doctor` and `run --dry-run` commands;
-- one-shot upload workflow with post-upload verification;
-- sanitized results, rotating logs, screenshots, and Playwright traces;
-- overlapping-run protection and artifact retention;
-- optional ntfy-compatible notification delivery;
-- Windows Task Scheduler XML and task management commands;
-- isolated tests that require no browser or network.
-
-Verified on macOS:
-
-- native keyring storage, installed Chrome launch, and persistent login;
-- current Naukri profile and résumé-control detection;
-- headed dry run that cannot upload;
-- one controlled upload with post-upload UI verification.
-
-Still requires environment validation:
-
-- validate Windows Task Scheduler registration on Windows 11;
-- validate a naturally expired/logged-out session when Naukri next requires reauthentication;
-- rerun `doctor` and a headed dry run for every teammate, machine, and account.
-
-See [DESIGN.md](DESIGN.md) for architecture, safety boundaries, and delivery phases.
+See [DESIGN.md](DESIGN.md) for architecture and safety boundaries.
 
 ## Requirements
 
 - Python 3.12 or newer;
 - Google Chrome by default, or Microsoft Edge / Playwright-managed Chromium when configured;
-- Windows 11 for automatic schedule management;
-- macOS or Linux for manual commands and development;
+- Windows 11 for automatic scheduling; manual commands work on Windows, macOS, and Linux;
 - internet access when installing dependencies and running Naukri automation.
 
 Linux credential storage requires a working Secret Service-compatible keyring. If no secure backend is available, profile creation fails instead of storing a password insecurely.
-
-The computer must be running or sleeping with wake timers enabled. A fully powered-off computer cannot execute the schedule.
 
 ## Windows Installation
 
@@ -73,7 +51,7 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-Automatic scheduler installation is currently Windows-only. The application commands themselves are cross-platform.
+## Browser Selection
 
 The default `browser_channel = "chrome"` uses the machine's installed Google Chrome, so no browser copy or Playwright browser download is required. Set it to `"msedge"` to use installed Microsoft Edge. Set it to `"chromium"` only if you prefer Playwright's managed browser, then install that version-specific payload with:
 
@@ -99,20 +77,7 @@ Default locations:
 | macOS | `~/Library/Application Support/NaukriAutomation/profiles/<name>/profile.toml` | same application-support directory |
 | Linux | `${XDG_CONFIG_HOME:-~/.config}/NaukriAutomation/profiles/<name>/profile.toml` | `${XDG_STATE_HOME:-~/.local/state}/NaukriAutomation/profiles/<name>/` |
 
-The first profile becomes the default. With multiple profiles, use `--profile <name>` or select a default with `naukri-auto profile default <name>`.
-
-Profile and résumé management:
-
-```text
-naukri-auto profile list
-naukri-auto profile show personal
-naukri-auto profile edit personal --schedule-time 09:00
-naukri-auto credentials status --profile personal
-naukri-auto credentials update --profile personal
-naukri-auto resume add --profile personal C:\path\alternate-resume.pdf
-naukri-auto resume list --profile personal
-naukri-auto resume select --profile personal alternate-resume.pdf
-```
+The first profile becomes the default. With multiple profiles, use `--profile <name>` or select a default with `naukri-auto profile default <name>`. The complete management command list is in [Command Reference](#command-reference).
 
 Every profile has separate configuration, managed résumés, browser cookies, logs, artifacts, lock, result, keyring entry, and Windows task name. Two local profiles using the same Naukri username still modify the same remote Naukri account, so do not schedule them at overlapping times.
 
@@ -172,7 +137,7 @@ The task uses the current non-administrator user's interactive session, ignores 
 
 After changing a profile's schedule, run `schedule install` again to replace that profile's Windows task definition.
 
-Because the dedicated browser profile belongs to the current user, remain signed in to Windows. Locking or sleeping the computer is acceptable when the Windows power settings allow wake timers; signing out is not.
+Because the dedicated browser profile belongs to the current user, remain signed in to Windows. Locking or sleeping the computer is acceptable when wake timers are enabled; signing out or powering off prevents the task from running.
 
 ## Command Reference
 
@@ -260,8 +225,6 @@ Existing profiles, managed résumés, keyring entries, and browser sessions are 
 - Browser launch failure: install the configured Chrome/Edge channel, or select `chromium` and run `python -m playwright install chromium`.
 - Windows task does not run: remain signed in, confirm wake timers, run `schedule show`, then use `schedule run-now` for a controlled check.
 
-When sharing this repository, each teammate must create their own local profile. Never share or copy application-data directories, browser profiles, keyring entries, logs, traces, screenshots, or real résumés.
-
 ## Development Checks
 
 The unit suite uses test doubles and performs no live network or browser calls:
@@ -278,13 +241,10 @@ ruff check .
 pytest
 ```
 
-## Legacy Files
-
-The original Selenium scripts were removed after the replacement passed a controlled upload. The packaged `naukri-auto` application is the only supported implementation; do not restore or distribute the obsolete scripts.
-
 ## Security
 
 - Never commit a résumé, configuration, browser profile, cookies, logs, screenshots, traces, or credentials.
+- Each teammate must create a separate local profile; do not share application-data directories, browser profiles, keyring entries, or diagnostic artifacts.
 - Passwords live only in the OS keyring. `profile show` reports whether one is stored but never reads it into output.
 - Profile login may fill stored credentials, but the user reviews and submits the login and completes CAPTCHA or MFA manually.
 - Never place credentials in source code, TOML, `.env`, command-line arguments, or notifications.

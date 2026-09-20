@@ -1,12 +1,12 @@
 # Naukri Resume Automation Design
 
-## Objective
+## Purpose
 
-Build a maintainable Python application that uploads a configured resume to the user's Naukri profile at a user-selected time. Windows 11 is the primary deployment target. Manual runs and development should remain compatible with macOS and Linux.
+The application uploads a selected résumé to a Naukri profile as a safe one-shot operation. Windows 11 is the primary scheduled runtime; manual operation is supported on Windows, macOS, and Linux.
 
 The application performs one run and exits. The operating-system scheduler owns timing.
 
-## Recommended Architecture
+## Architecture
 
 ```text
 Windows Task Scheduler
@@ -30,7 +30,7 @@ The Python process will not remain running as a daemon and will not implement it
 
 ## Technology Choices
 
-- Python 3.12 as the initial supported runtime.
+- Python 3.12 or newer.
 - Playwright's synchronous Python API with an explicit Chrome, Edge, or managed Chromium channel.
 - A `pyproject.toml` package with a `naukri-auto` console command.
 - Typed per-profile TOML configuration stored in the user's application-data directory.
@@ -38,7 +38,7 @@ The Python process will not remain running as a daemon and will not implement it
 - Windows Task Scheduler as the primary scheduler.
 - `pytest` and Ruff for automated verification.
 
-Playwright replaces Selenium because it supports installed browser channels and managed browser binaries, auto-waits for actionable elements, supports persistent contexts, and produces traces and screenshots useful for diagnosing site changes. The default `chrome` channel avoids a separate browser download and version-specific cache sharing with unrelated Playwright applications.
+Playwright provides persistent browser contexts, actionable-element waiting, installed-browser channels, and failure traces. The default `chrome` channel uses the installed browser and does not require a separate browser download.
 
 ## Commands
 
@@ -74,7 +74,7 @@ Perform side-effect-free checks:
 - configuration schema;
 - resume existence, readability, type, non-empty content, and maximum size;
 - application-data and profile permissions;
-- scheduled-task visibility;
+- scheduler availability;
 - notification configuration.
 
 It must not log in, select a file, upload a resume, or send a test notification unless separately requested.
@@ -119,7 +119,7 @@ The repository must exclude:
 - screenshots, traces, and logs;
 - virtual environments, caches, build output, and `.DS_Store`.
 
-The old hidden-random-text PDF mutation will be removed. The exact user-provided resume is uploaded. If Naukri rejects identical content, that behavior will be investigated explicitly instead of silently changing document content.
+The application uploads the exact managed résumé and never mutates its contents. If Naukri rejects identical content, the run fails explicitly rather than modifying the document.
 
 ## Workflow Boundaries
 
@@ -140,16 +140,17 @@ The workflow must:
 Stable result categories:
 
 - `SUCCESS`
+- `DRY_RUN_SUCCESS`
 - `CONFIG_ERROR`
 - `AUTH_REQUIRED`
 - `SITE_CHANGED`
 - `UPLOAD_FAILED`
 - `NETWORK_ERROR`
 - `ALREADY_RUNNING`
+- `DEPENDENCY_ERROR`
+- `INTERNAL_ERROR`
 
-The current implementation does not retry runs. A future retry may cover only a known pre-upload transient navigation or network failure. It must never retry authentication failures, invalid configuration, selector-contract failures, or an upload with an unknown outcome.
-
-The current implementation deliberately has no generic Task Scheduler retry. An operating-system retry cannot distinguish a safe pre-upload network failure from an upload whose outcome is unknown.
+Runs are not retried automatically. This prevents a duplicate upload when an earlier attempt has an unknown outcome.
 
 On failure, retain:
 
@@ -162,7 +163,7 @@ Apply bounded retention. Never retain credentials, cookies, full HTML/body dumps
 
 Notifications are optional and best-effort. Notification failure does not change a successful upload into an upload failure.
 
-## Proposed Repository Layout
+## Repository Layout
 
 ```text
 Automation/
@@ -190,7 +191,6 @@ Automation/
       __init__.py
       windows.py
   tests/
-    fixtures/
     test_config.py
     test_browser_session.py
     test_cli_login.py
@@ -201,54 +201,13 @@ Automation/
     test_windows_schedule.py
 ```
 
-Do not add macOS/Linux scheduler installers until the Windows path is proven. The core commands remain cross-platform without them.
+Scheduler management is Windows-only; the core commands remain cross-platform.
 
-## Delivery Plan
-
-### Phase 1: Safe foundation
-
-- package layout and CLI;
-- typed configuration and platform paths;
-- result model, logging, run lock, and retention;
-- side-effect-safe tests and secret scanning;
-- profile management and `doctor`.
-
-Acceptance: clean install, tests pass without network access, and no sensitive/runtime file is tracked.
-
-### Phase 2: Browser workflow
-
-- Playwright installation and profile bootstrap;
-- authentication-state handling;
-- dry-run and upload workflows;
-- centralized locators and post-upload verification;
-- screenshots/traces and fixture-backed tests.
-
-Acceptance: achieved on macOS; tests prove dry-run cannot upload, and a real headed dry run reached the current résumé section without modifying the profile.
-
-### Phase 3: Windows scheduling
-
-- install, inspect, run-now, and remove the scheduled task;
-- wake, missed-run, overlap, and timeout settings;
-- Windows installation and troubleshooting documentation.
-
-Acceptance: schedule configuration round-trips on Windows 11 and reports the next/last run accurately.
-
-### Phase 4: Controlled live canary
-
-- interactive login/profile refresh;
-- one explicitly authorized upload;
-- verify the expected filename and update evidence;
-- confirm diagnostic behavior.
-
-Acceptance: achieved on macOS; Naukri UI and the local `SUCCESS` result both confirmed the controlled upload, with no failure artifact or secret leakage observed.
-
-Optional notification delivery remains separately testable only after a private endpoint and topic are configured; it is not part of the upload-success criterion.
-
-## Deployment Decision
+## Deployment Model
 
 Use the Windows 11 system and Task Scheduler first. It keeps authentication local, reuses a dedicated browser profile, and can wake a sleeping computer. It cannot operate while the machine is fully powered off.
 
-An always-on VM can be added later if independence from the personal machine becomes mandatory. GitHub-hosted Actions is not the preferred runtime because scheduled jobs may be delayed, authentication state and the resume become runner secrets, and cloud-run browser behavior may differ from the user's normal session.
+An always-on host can be added later if execution must be independent of the personal computer. Hosted CI runners are not a supported runtime because they require exporting the browser session and résumé outside the user's machine.
 
 ## Official References
 
@@ -259,4 +218,3 @@ An always-on VM can be added later if independence from the personal machine bec
 - [Microsoft `schtasks`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks)
 - [Microsoft Task Scheduler `WakeToRun`](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-waketorun)
 - [Python keyring](https://keyring.readthedocs.io/en/stable/)
-- [GitHub Actions scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
