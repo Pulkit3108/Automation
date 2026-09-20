@@ -5,7 +5,7 @@ A Windows-first, cross-platform Python application for updating a configured res
 The application performs one run and exits. Windows Task Scheduler owns the schedule, so no Python process needs to remain running all day. Manual runs are supported on Windows, macOS, and Linux.
 
 > [!IMPORTANT]
-> Browser selectors have not yet been calibrated against a live Naukri account. Start with interactive login and `--dry-run`. A real upload is an external profile change and should be attempted only after the dry run succeeds.
+> The login, headed dry run, and one controlled upload have been verified on macOS with Google Chrome. Every new machine and account must still pass `doctor`, interactive login, and a headed dry run before scheduling a real upload.
 
 ## Current Status
 
@@ -24,12 +24,18 @@ Implemented:
 - Windows Task Scheduler XML and task management commands;
 - isolated tests that require no browser or network.
 
+Verified on macOS:
+
+- native keyring storage, installed Chrome launch, and persistent login;
+- current Naukri profile and résumé-control detection;
+- headed dry run that cannot upload;
+- one controlled upload with post-upload UI verification.
+
 Still requires environment validation:
 
-- install dependencies and confirm the selected browser on a target system;
-- calibrate current Naukri login/profile selectors through a headed dry run;
 - validate Windows Task Scheduler registration on Windows 11;
-- authorize and perform one controlled live upload.
+- validate a naturally expired/logged-out session when Naukri next requires reauthentication;
+- rerun `doctor` and a headed dry run for every teammate, machine, and account.
 
 See [DESIGN.md](DESIGN.md) for architecture, safety boundaries, and delivery phases.
 
@@ -40,6 +46,8 @@ See [DESIGN.md](DESIGN.md) for architecture, safety boundaries, and delivery pha
 - Windows 11 for automatic schedule management;
 - macOS or Linux for manual commands and development;
 - internet access when installing dependencies and running Naukri automation.
+
+Linux credential storage requires a working Secret Service-compatible keyring. If no secure backend is available, profile creation fails instead of storing a password insecurely.
 
 The computer must be running or sleeping with wake timers enabled. A fully powered-off computer cannot execute the schedule.
 
@@ -99,6 +107,7 @@ Profile and résumé management:
 naukri-auto profile list
 naukri-auto profile show personal
 naukri-auto profile edit personal --schedule-time 09:00
+naukri-auto credentials status --profile personal
 naukri-auto credentials update --profile personal
 naukri-auto resume add --profile personal C:\path\alternate-resume.pdf
 naukri-auto resume list --profile personal
@@ -122,6 +131,8 @@ naukri-auto login --profile personal
 ```
 
 Complete login, CAPTCHA, and MFA manually. Authentication remains in a dedicated local Playwright profile and must never be committed or shared.
+
+If the profile is already authenticated, the command confirms it and exits automatically. Otherwise it waits for the login form, fills stored credentials when the current form is recognized, and leaves submission, CAPTCHA, and MFA to the user. Leave the browser open until the command verifies the profile and closes it.
 
 ### 4. Perform A Headed Dry Run
 
@@ -163,6 +174,38 @@ After changing a profile's schedule, run `schedule install` again to replace tha
 
 Because the dedicated browser profile belongs to the current user, remain signed in to Windows. Locking or sleeping the computer is acceptable when the Windows power settings allow wake timers; signing out is not.
 
+## Command Reference
+
+All profile-bound commands accept `--profile <name>`. The option may be omitted when a default profile is configured.
+
+| Purpose | Command |
+| --- | --- |
+| Create a profile | `naukri-auto profile create <name> --username <login> --resume <path>` |
+| List profiles | `naukri-auto profile list` |
+| Inspect a profile | `naukri-auto profile show <name>` |
+| Select the default | `naukri-auto profile default <name>` |
+| Change username | `naukri-auto profile edit <name> --username <login>` |
+| Change browser | `naukri-auto profile edit <name> --browser-channel chrome|msedge|chromium` |
+| Change daily schedule | `naukri-auto profile edit <name> --schedule-frequency daily --schedule-time HH:MM` |
+| Change weekly schedule | `naukri-auto profile edit <name> --schedule-frequency weekly --schedule-time HH:MM --schedule-days MON,FRI` |
+| Check whether a password is stored | `naukri-auto credentials status --profile <name>` |
+| Replace the stored password | `naukri-auto credentials update --profile <name>` |
+| Remove the stored password | `naukri-auto credentials remove --profile <name>` |
+| Import a résumé | `naukri-auto resume add <path> --profile <name> [--select] [--replace]` |
+| List managed résumés | `naukri-auto resume list --profile <name>` |
+| Select the active résumé | `naukri-auto resume select <filename> --profile <name>` |
+| Remove an inactive résumé | `naukri-auto resume remove <filename> --profile <name>` |
+| Check readiness | `naukri-auto doctor --profile <name>` |
+| Establish or verify login | `naukri-auto login --profile <name>` |
+| Safe browser test | `naukri-auto run --profile <name> --dry-run --headed` |
+| Perform one upload | `naukri-auto run --profile <name> [--headed]` |
+| Install the Windows task | `naukri-auto schedule install --profile <name>` |
+| Inspect the Windows task | `naukri-auto schedule show --profile <name>` |
+| Trigger the Windows task now | `naukri-auto schedule run-now --profile <name>` |
+| Remove the Windows task | `naukri-auto schedule remove --profile <name>` |
+
+Use `naukri-auto <command> --help` and `naukri-auto <command> <subcommand> --help` for exact options.
+
 ## Results And Diagnostics
 
 Stable result categories include:
@@ -180,11 +223,48 @@ Stable result categories include:
 
 Each profile's mutable data directory holds its managed résumés, `last-result.json`, rotating logs, browser profile, and bounded failure artifacts. These files may contain private account context and stay outside the repository.
 
-No automated flow bypasses CAPTCHA or MFA. When authentication cannot proceed safely, refresh it with `naukri-auto login --headed`.
+No automated flow bypasses CAPTCHA or MFA. When authentication cannot proceed safely, refresh it with `naukri-auto login --profile <name>`.
+
+## Optional Notifications
+
+Notifications are disabled by default and currently configured in the profile's generated `profile.toml`. Set a private ntfy-compatible HTTPS endpoint and topic:
+
+```toml
+[notification]
+enabled = true
+base_url = "https://ntfy.sh"
+topic = "your-private-topic"
+```
+
+Run `doctor` after editing the file. Notification delivery is best-effort: it never changes a verified upload from success to failure. Do not put credentials, account details, or résumé content in the endpoint or topic.
+
+## Updating An Existing Installation
+
+From a clean checkout:
+
+```bash
+git pull --ff-only
+source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e .
+naukri-auto doctor --profile <name>
+```
+
+Existing profiles, managed résumés, keyring entries, and browser sessions are stored outside the repository and are not replaced by a Git update.
+
+## Troubleshooting
+
+- `AUTH_REQUIRED`: run `naukri-auto login --profile <name>` and complete any CAPTCHA or MFA.
+- `SITE_CHANGED`: do not retry an upload blindly; inspect the timestamped screenshot and trace in the profile's `artifacts` directory.
+- `UPLOAD_FAILED`: the upload outcome was not verified; inspect Naukri manually before retrying.
+- `ALREADY_RUNNING`: another login or run owns the profile lock; wait for it to finish.
+- Browser launch failure: install the configured Chrome/Edge channel, or select `chromium` and run `python -m playwright install chromium`.
+- Windows task does not run: remain signed in, confirm wake timers, run `schedule show`, then use `schedule run-now` for a controlled check.
+
+When sharing this repository, each teammate must create their own local profile. Never share or copy application-data directories, browser profiles, keyring entries, logs, traces, screenshots, or real résumés.
 
 ## Development Checks
 
-The unit suite uses only Python's standard library and performs no network or browser calls:
+The unit suite uses test doubles and performs no live network or browser calls:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m unittest discover -s tests -v
@@ -200,7 +280,7 @@ pytest
 
 ## Legacy Files
 
-The original Selenium scripts remain temporarily at the repository root as migration evidence. They are not used by the new package and must not be run; some contain obsolete APIs and live external side effects. Remove or archive them only after the new headed dry run succeeds.
+The original Selenium scripts were removed after the replacement passed a controlled upload. The packaged `naukri-auto` application is the only supported implementation; do not restore or distribute the obsolete scripts.
 
 ## Security
 

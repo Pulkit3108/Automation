@@ -36,7 +36,7 @@ The Python process will not remain running as a daemon and will not implement it
 - Typed per-profile TOML configuration stored in the user's application-data directory.
 - `keyring` for credentials in Windows Credential Manager, macOS Keychain, or a supported Linux keyring.
 - Windows Task Scheduler as the primary scheduler.
-- `pytest`, Ruff, and type checking for automated verification.
+- `pytest` and Ruff for automated verification.
 
 Playwright replaces Selenium because it supports installed browser channels and managed browser binaries, auto-waits for actionable elements, supports persistent contexts, and produces traces and screenshots useful for diagnosing site changes. The default `chrome` channel avoids a separate browser download and version-specific cache sharing with unrelated Playwright applications.
 
@@ -51,7 +51,7 @@ Create and manage isolated profiles containing:
 - browser channel (`chrome`, `msedge`, or `chromium`);
 - daily or weekly schedule and local timezone;
 - headed or headless scheduled execution;
-- optional notification endpoint/topic;
+- optional notification endpoint/topic in the non-secret profile TOML;
 - diagnostic artifact retention.
 
 Passwords are collected only through hidden prompts and stored in the OS keyring. Configuration must never contain a password, session cookie, or browser token.
@@ -60,11 +60,11 @@ Passwords are collected only through hidden prompts and stored in the OS keyring
 
 Copy résumés into a dedicated per-profile folder, retain multiple choices, and select exactly one active file without silently overwriting an existing import.
 
-### `naukri-auto login --headed`
+### `naukri-auto login --profile <name>`
 
 Open the selected browser with a dedicated automation profile and let the user log in interactively. The profile is reused by scheduled runs. If CAPTCHA or MFA appears later, the run stops with `AUTH_REQUIRED` and asks the user to refresh this profile.
 
-An optional automatic-login fallback may read username/password from the OS credential store. It will never bypass CAPTCHA or MFA.
+When logged out, the command may fill username/password from the OS credential store after the login form is detected. Submission, CAPTCHA, and MFA remain manual. When already authenticated, it confirms the persisted session without reading the credential.
 
 ### `naukri-auto doctor`
 
@@ -95,7 +95,6 @@ Manage only the application's Windows scheduled task. Installation should displa
 - use absolute executable and working-directory paths;
 - wake the computer from sleep when permitted;
 - start when a scheduled run was missed;
-- retry a bounded number of times after transient failure;
 - reject overlapping runs;
 - stop after a maximum duration;
 - expose last and next run status through `schedule show`.
@@ -148,7 +147,9 @@ Stable result categories:
 - `NETWORK_ERROR`
 - `ALREADY_RUNNING`
 
-Retry only transient navigation and network failures with bounded backoff. Do not retry authentication failures, invalid configuration, selector-contract failures, or an upload with an unknown outcome.
+The current implementation does not retry runs. A future retry may cover only a known pre-upload transient navigation or network failure. It must never retry authentication failures, invalid configuration, selector-contract failures, or an upload with an unknown outcome.
+
+The current implementation deliberately has no generic Task Scheduler retry. An operating-system retry cannot distinguish a safe pre-upload network failure from an upload whose outcome is unknown.
 
 On failure, retain:
 
@@ -175,7 +176,10 @@ Automation/
     __init__.py
     cli.py
     config.py
+    credentials.py
     paths.py
+    profile_cli.py
+    profile_store.py
     result.py
     run_lock.py
     workflow.py
@@ -188,11 +192,13 @@ Automation/
   tests/
     fixtures/
     test_config.py
+    test_browser_session.py
+    test_cli_login.py
+    test_naukri_site.py
+    test_profiles.py
     test_workflow.py
     test_notifications.py
     test_windows_schedule.py
-  scripts/
-    install-windows.ps1
 ```
 
 Do not add macOS/Linux scheduler installers until the Windows path is proven. The core commands remain cross-platform without them.
@@ -217,12 +223,12 @@ Acceptance: clean install, tests pass without network access, and no sensitive/r
 - centralized locators and post-upload verification;
 - screenshots/traces and fixture-backed tests.
 
-Acceptance: tests prove dry-run cannot upload; a headed local dry run reaches the expected resume section without modifying the profile.
+Acceptance: achieved on macOS; tests prove dry-run cannot upload, and a real headed dry run reached the current résumé section without modifying the profile.
 
 ### Phase 3: Windows scheduling
 
 - install, inspect, run-now, and remove the scheduled task;
-- wake, missed-run, bounded retry, overlap, and timeout settings;
+- wake, missed-run, overlap, and timeout settings;
 - Windows installation and troubleshooting documentation.
 
 Acceptance: schedule configuration round-trips on Windows 11 and reports the next/last run accurately.
@@ -232,9 +238,11 @@ Acceptance: schedule configuration round-trips on Windows 11 and reports the nex
 - interactive login/profile refresh;
 - one explicitly authorized upload;
 - verify the expected filename and update evidence;
-- confirm notification and diagnostic behavior.
+- confirm diagnostic behavior.
 
-Acceptance: Naukri and the local result both confirm success, with no secret leakage.
+Acceptance: achieved on macOS; Naukri UI and the local `SUCCESS` result both confirmed the controlled upload, with no failure artifact or secret leakage observed.
+
+Optional notification delivery remains separately testable only after a private endpoint and topic are configured; it is not part of the upload-success criterion.
 
 ## Deployment Decision
 
