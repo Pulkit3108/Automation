@@ -16,7 +16,7 @@ from naukri_automation.naukri_site import (
     UploadVerificationError,
 )
 from naukri_automation.notifications import send_notification
-from naukri_automation.paths import AppPaths
+from naukri_automation.paths import AppPaths, ProfilePaths
 from naukri_automation.result import Outcome, RunResult
 from naukri_automation.run_lock import AlreadyRunningError, RunLock
 
@@ -27,7 +27,7 @@ SiteFactory = Callable[..., Any]
 
 def execute(
     config: AppConfig,
-    paths: AppPaths,
+    paths: AppPaths | ProfilePaths,
     *,
     dry_run: bool = False,
     headed: bool = False,
@@ -64,7 +64,7 @@ def execute(
 
 def _execute_locked(
     config: AppConfig,
-    paths: AppPaths,
+    paths: AppPaths | ProfilePaths,
     *,
     dry_run: bool,
     headed: bool,
@@ -76,6 +76,7 @@ def _execute_locked(
     try:
         with browser_factory(
             paths.browser_profile,
+            browser_channel=config.browser_channel,
             headless=False if headed else config.headless,
             timeout_seconds=config.timeout_seconds,
         ) as session:
@@ -142,7 +143,11 @@ def _execute_locked(
     return _finish(result, config, paths)
 
 
-def _finish(result: RunResult, config: AppConfig, paths: AppPaths) -> RunResult:
+def _finish(
+    result: RunResult,
+    config: AppConfig,
+    paths: AppPaths | ProfilePaths,
+) -> RunResult:
     result.write(paths.last_result)
     send_notification(config.notification, result)
     return result

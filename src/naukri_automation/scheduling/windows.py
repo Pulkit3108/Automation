@@ -29,9 +29,13 @@ def build_task_xml(
     schedule: ScheduleConfig,
     *,
     python_executable: Path,
-    config_path: Path,
+    config_path: Path | None = None,
+    profile_name: str | None = None,
+    working_directory: Path | None = None,
     now: datetime | None = None,
 ) -> str:
+    if (config_path is None) == (profile_name is None):
+        raise SchedulerError("provide exactly one of config_path or profile_name")
     now = now or datetime.now().astimezone()
     boundary = _next_boundary(schedule, now)
     ET.register_namespace("", TASK_NAMESPACE)
@@ -72,10 +76,14 @@ def build_task_xml(
     actions = ET.SubElement(task, _tag("Actions"), {"Context": "CurrentUser"})
     command = ET.SubElement(actions, _tag("Exec"))
     ET.SubElement(command, _tag("Command")).text = str(python_executable.resolve())
-    ET.SubElement(command, _tag("Arguments")).text = (
-        f'-m naukri_automation --config "{config_path.resolve()}" run'
-    )
-    ET.SubElement(command, _tag("WorkingDirectory")).text = str(config_path.resolve().parent)
+    arguments = "-m naukri_automation"
+    if profile_name is not None:
+        arguments += f' run --profile "{profile_name}"'
+    else:
+        arguments += f' --config "{config_path.resolve()}" run'
+    ET.SubElement(command, _tag("Arguments")).text = arguments
+    directory = working_directory or config_path.resolve().parent
+    ET.SubElement(command, _tag("WorkingDirectory")).text = str(directory.resolve())
 
     ET.indent(task, space="  ")
     return ET.tostring(task, encoding="unicode", xml_declaration=True)
@@ -103,6 +111,16 @@ class WindowsScheduler:
 
     def remove(self) -> str:
         return self._run("/Delete", "/TN", self.task_name, "/F")
+
+    def is_installed(self) -> bool:
+        completed = subprocess.run(
+            ["schtasks.exe", "/Query", "/TN", self.task_name],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return completed.returncode == 0
 
     @staticmethod
     def _run(*arguments: str) -> str:

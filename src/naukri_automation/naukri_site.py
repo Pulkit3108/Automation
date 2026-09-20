@@ -35,6 +35,19 @@ class NaukriSite:
     def open_profile(self) -> None:
         self.page.goto(PROFILE_URL, wait_until="domcontentloaded")
 
+    def fill_login(self, username: str, password: str) -> bool:
+        username_input = self.page.locator(
+            'input#usernameField, input#emailTxt, input[name="username"]'
+        ).first
+        password_input = self.page.locator(
+            'input#passwordField, input#pwd1, input[type="password"]'
+        ).first
+        if username_input.count() == 0 or password_input.count() == 0:
+            return False
+        username_input.fill(username)
+        password_input.fill(password)
+        return True
+
     def auth_state(self) -> AuthState:
         current_url = self.page.url.lower()
         if "/nlogin/" in current_url or self._count(

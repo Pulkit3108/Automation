@@ -18,6 +18,18 @@ class AppPaths:
         return self.config_dir / "config.toml"
 
     @property
+    def profiles_config_dir(self) -> Path:
+        return self.config_dir / "profiles"
+
+    @property
+    def profiles_data_dir(self) -> Path:
+        return self.data_dir / "profiles"
+
+    @property
+    def default_profile_file(self) -> Path:
+        return self.config_dir / "default-profile"
+
+    @property
     def browser_profile(self) -> Path:
         return self.data_dir / "browser-profile"
 
@@ -39,6 +51,58 @@ class AppPaths:
 
     def ensure_runtime_dirs(self) -> None:
         for path in (self.config_dir, self.data_dir, self.logs, self.artifacts):
+            path.mkdir(parents=True, exist_ok=True)
+
+    def profile(self, name: str) -> ProfilePaths:
+        return ProfilePaths(
+            name=name,
+            config_dir=self.profiles_config_dir / name,
+            data_dir=self.profiles_data_dir / name,
+        )
+
+
+@dataclass(frozen=True)
+class ProfilePaths:
+    name: str
+    config_dir: Path
+    data_dir: Path
+
+    @property
+    def config_file(self) -> Path:
+        return self.config_dir / "profile.toml"
+
+    @property
+    def resumes(self) -> Path:
+        return self.data_dir / "resumes"
+
+    @property
+    def browser_profile(self) -> Path:
+        return self.data_dir / "browser-profile"
+
+    @property
+    def logs(self) -> Path:
+        return self.data_dir / "logs"
+
+    @property
+    def artifacts(self) -> Path:
+        return self.data_dir / "artifacts"
+
+    @property
+    def run_lock(self) -> Path:
+        return self.data_dir / "run.lock"
+
+    @property
+    def last_result(self) -> Path:
+        return self.data_dir / "last-result.json"
+
+    def ensure_runtime_dirs(self) -> None:
+        for path in (
+            self.config_dir,
+            self.data_dir,
+            self.resumes,
+            self.logs,
+            self.artifacts,
+        ):
             path.mkdir(parents=True, exist_ok=True)
 
 

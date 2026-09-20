@@ -1,6 +1,9 @@
-# Copy this file to the location printed by `naukri-auto configure`.
-# Use an absolute path. Do not place your resume inside this repository.
-resume_path = "C:\\Users\\you\\Documents\\resume.pdf"
+# Illustrative generated profile configuration. Use `naukri-auto profile create`.
+# Passwords are stored in the OS keyring and never appear here.
+profile_name = "personal"
+username = "you@example.com"
+resume_path = "C:\\Users\\you\\AppData\\Local\\NaukriAutomation\\profiles\\personal\\resumes\\resume.pdf"
+browser_channel = "chrome"
 headless = true
 timeout_seconds = 45
 artifact_retention_days = 14

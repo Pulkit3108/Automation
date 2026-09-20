@@ -23,6 +23,9 @@ class ConfigTests(unittest.TestCase):
             path = root / "config.toml"
             expected = AppConfig(
                 resume_path=resume,
+                profile_name="personal",
+                username="person@example.test",
+                browser_channel="msedge",
                 headless=False,
                 notification=NotificationConfig(
                     enabled=True,
@@ -66,6 +69,15 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ConfigurationError, "requires at least one day"):
+            config.validate(require_resume=False)
+
+    def test_unknown_browser_channel_is_rejected(self) -> None:
+        config = AppConfig(
+            resume_path=Path("/tmp/resume.pdf"),
+            browser_channel="firefox",
+        )
+
+        with self.assertRaisesRegex(ConfigurationError, "browser_channel"):
             config.validate(require_resume=False)
 
 

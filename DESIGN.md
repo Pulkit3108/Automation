@@ -12,7 +12,7 @@ The application performs one run and exits. The operating-system scheduler owns 
 Windows Task Scheduler
         |
         v
-  naukri-auto run
+  naukri-auto run --profile <name>
         |
         +--> validate config and resume
         +--> acquire single-run lock
@@ -31,32 +31,38 @@ The Python process will not remain running as a daemon and will not implement it
 ## Technology Choices
 
 - Python 3.12 as the initial supported runtime.
-- Playwright's synchronous Python API with managed Chromium.
+- Playwright's synchronous Python API with an explicit Chrome, Edge, or managed Chromium channel.
 - A `pyproject.toml` package with a `naukri-auto` console command.
-- Typed TOML configuration stored in the user's application-data directory.
-- `keyring` for optional credentials in Windows Credential Locker or macOS Keychain.
+- Typed per-profile TOML configuration stored in the user's application-data directory.
+- `keyring` for credentials in Windows Credential Manager, macOS Keychain, or a supported Linux keyring.
 - Windows Task Scheduler as the primary scheduler.
 - `pytest`, Ruff, and type checking for automated verification.
 
-Playwright replaces Selenium because it manages supported browser binaries, auto-waits for actionable elements, supports persistent contexts, and produces traces and screenshots useful for diagnosing site changes.
+Playwright replaces Selenium because it supports installed browser channels and managed browser binaries, auto-waits for actionable elements, supports persistent contexts, and produces traces and screenshots useful for diagnosing site changes. The default `chrome` channel avoids a separate browser download and version-specific cache sharing with unrelated Playwright applications.
 
 ## Commands
 
-### `naukri-auto configure`
+### `naukri-auto profile create|list|show|edit|default`
 
-Interactively configure:
+Create and manage isolated profiles containing:
 
-- absolute resume path;
+- profile name and Naukri username;
+- managed résumé collection and active résumé;
+- browser channel (`chrome`, `msedge`, or `chromium`);
 - daily or weekly schedule and local timezone;
 - headed or headless scheduled execution;
 - optional notification endpoint/topic;
 - diagnostic artifact retention.
 
-Configuration must never contain a password, session cookie, or browser token.
+Passwords are collected only through hidden prompts and stored in the OS keyring. Configuration must never contain a password, session cookie, or browser token.
+
+### `naukri-auto resume add|list|select|remove`
+
+Copy résumés into a dedicated per-profile folder, retain multiple choices, and select exactly one active file without silently overwriting an existing import.
 
 ### `naukri-auto login --headed`
 
-Open a dedicated Chromium profile and let the user log in interactively. The profile is reused by scheduled runs. If CAPTCHA or MFA appears later, the run stops with `AUTH_REQUIRED` and asks the user to refresh this profile.
+Open the selected browser with a dedicated automation profile and let the user log in interactively. The profile is reused by scheduled runs. If CAPTCHA or MFA appears later, the run stops with `AUTH_REQUIRED` and asks the user to refresh this profile.
 
 An optional automatic-login fallback may read username/password from the OS credential store. It will never bypass CAPTCHA or MFA.
 
@@ -99,11 +105,11 @@ Manage only the application's Windows scheduled task. Installation should displa
 Use platform application-data directories rather than the repository:
 
 ```text
-Windows configuration: %APPDATA%\NaukriAutomation\config.toml
-Windows mutable data:  %LOCALAPPDATA%\NaukriAutomation\
+Windows configuration: %APPDATA%\NaukriAutomation\profiles\<name>\profile.toml
+Windows mutable data:  %LOCALAPPDATA%\NaukriAutomation\profiles\<name>\
 ```
 
-The mutable directory may contain the dedicated browser profile, logs, run lock, screenshots, and Playwright traces. Authentication state is sensitive and must never be committed, printed, archived, or uploaded.
+Each mutable profile directory may contain managed résumés, a dedicated browser profile, logs, run lock, result, screenshots, and Playwright traces. Authentication state is sensitive and must never be committed, printed, archived, or uploaded.
 
 The repository must exclude:
 
@@ -199,7 +205,7 @@ Do not add macOS/Linux scheduler installers until the Windows path is proven. Th
 - typed configuration and platform paths;
 - result model, logging, run lock, and retention;
 - side-effect-safe tests and secret scanning;
-- `configure` and `doctor`.
+- profile management and `doctor`.
 
 Acceptance: clean install, tests pass without network access, and no sensitive/runtime file is tracked.
 

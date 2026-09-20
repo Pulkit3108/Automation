@@ -57,6 +57,22 @@ class WindowsScheduleTests(unittest.TestCase):
         self.assertIsNotNone(root.find(".//task:Friday", namespaces=NS))
         self.assertIsNotNone(root.find(".//task:ScheduleByWeek", namespaces=NS))
 
+    def test_profile_task_invokes_selected_profile(self) -> None:
+        xml = build_task_xml(
+            ScheduleConfig(frequency="daily", time="09:30"),
+            python_executable=Path("/opt/python/bin/python"),
+            profile_name="personal",
+            working_directory=Path("/tmp/profile"),
+            now=datetime.fromisoformat("2026-09-20T08:00:00+05:30"),
+        )
+        root = ET.fromstring(xml)
+
+        arguments = root.findtext(".//task:Arguments", namespaces=NS)
+        self.assertEqual(
+            '-m naukri_automation run --profile "personal"',
+            arguments,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,10 +15,12 @@ class BrowserSession:
         self,
         profile_dir: Path,
         *,
+        browser_channel: str,
         headless: bool,
         timeout_seconds: int,
     ) -> None:
         self.profile_dir = profile_dir
+        self.browser_channel = browser_channel
         self.headless = headless
         self.timeout_ms = timeout_seconds * 1000
         self._playwright: Any = None
@@ -31,22 +33,33 @@ class BrowserSession:
             from playwright.sync_api import sync_playwright
         except ImportError as error:
             raise BrowserDependencyError(
-                "Playwright is not installed; install the package and run "
-                "'playwright install chromium'"
+                "Playwright is not installed; install the project dependencies"
             ) from error
 
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         self._playwright = sync_playwright().start()
         try:
+            launch_options: dict[str, Any] = {
+                "user_data_dir": self.profile_dir,
+                "headless": self.headless,
+                "accept_downloads": False,
+            }
+            if self.browser_channel != "chromium":
+                launch_options["channel"] = self.browser_channel
             self.context = self._playwright.chromium.launch_persistent_context(
-                user_data_dir=self.profile_dir,
-                headless=self.headless,
-                accept_downloads=False,
+                **launch_options,
             )
-        except Exception:
+        except Exception as error:
             self._playwright.stop()
             self._playwright = None
-            raise
+            install_hint = (
+                "run 'playwright install chromium'"
+                if self.browser_channel == "chromium"
+                else f"install the {self.browser_channel} browser"
+            )
+            raise BrowserDependencyError(
+                f"could not launch browser channel '{self.browser_channel}'; {install_hint}"
+            ) from error
 
         self.context.set_default_timeout(self.timeout_ms)
         self.context.set_default_navigation_timeout(self.timeout_ms)
