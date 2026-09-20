@@ -7,6 +7,16 @@ from typing import Any
 
 LOGIN_URL = "https://www.naukri.com/nlogin/login"
 PROFILE_URL = "https://www.naukri.com/mnjuser/profile"
+USERNAME_SELECTOR = 'input#usernameField, input#emailTxt, input[name="username"]'
+PASSWORD_SELECTOR = 'input#passwordField, input#pwd1, input[type="password"]'
+RESUME_SELECTOR = (
+    'input#attachCV[type="file"], input[type="file"][name*="resume" i], '
+    'input[type="file"][accept*="pdf" i]'
+)
+AUTHENTICATED_SELECTOR = (
+    'button[aria-label="Open profile menu"], a[href="/mnjuser/profile"], '
+    ".view-profile-wrapper, input#attachCV, input[type=\"file\"][name*=\"resume\" i]"
+)
 
 
 class AuthState(StrEnum):
@@ -36,41 +46,47 @@ class NaukriSite:
         self.page.goto(PROFILE_URL, wait_until="domcontentloaded")
 
     def fill_login(self, username: str, password: str) -> bool:
-        username_input = self.page.locator(
-            'input#usernameField, input#emailTxt, input[name="username"]'
-        ).first
-        password_input = self.page.locator(
-            'input#passwordField, input#pwd1, input[type="password"]'
-        ).first
-        if username_input.count() == 0 or password_input.count() == 0:
+        username_input = self.page.locator(USERNAME_SELECTOR).first
+        password_input = self.page.locator(PASSWORD_SELECTOR).first
+        try:
+            username_input.wait_for(state="visible", timeout=self.timeout_ms)
+            password_input.wait_for(state="visible", timeout=self.timeout_ms)
+        except Exception:
             return False
         username_input.fill(username)
         password_input.fill(password)
         return True
 
+    def wait_for_auth_state(self) -> AuthState:
+        state_marker = self.page.locator(
+            f"{USERNAME_SELECTOR}, {AUTHENTICATED_SELECTOR}"
+        ).first
+        try:
+            state_marker.wait_for(state="attached", timeout=self.timeout_ms)
+        except Exception:
+            return AuthState.UNKNOWN
+        return self.auth_state()
+
     def auth_state(self) -> AuthState:
         current_url = self.page.url.lower()
-        if "/nlogin/" in current_url or self._count(
-            'input#usernameField, input#emailTxt, input[name="username"]'
-        ):
-            return AuthState.LOGIN_REQUIRED
-        if self._count(
-            'a[href="/mnjuser/profile"], .view-profile-wrapper, input#attachCV, '
-            'input[type="file"][name*="resume" i]'
-        ):
+        if self._count(AUTHENTICATED_SELECTOR):
             return AuthState.AUTHENTICATED
+        if "/nlogin/" in current_url or self._count(USERNAME_SELECTOR):
+            return AuthState.LOGIN_REQUIRED
         return AuthState.UNKNOWN
 
     def inspect_resume_section(self) -> str:
-        state = self.auth_state()
+        state = self.wait_for_auth_state()
         if state == AuthState.LOGIN_REQUIRED:
             raise AuthenticationRequired("Naukri login is required")
         if state == AuthState.UNKNOWN:
             raise SiteContractError("could not confirm the Naukri profile page")
 
         resume_input = self._resume_input()
-        if resume_input.count() == 0:
-            raise SiteContractError("resume upload control was not found")
+        try:
+            resume_input.first.wait_for(state="attached", timeout=self.timeout_ms)
+        except Exception as error:
+            raise SiteContractError("resume upload control was not found") from error
 
         evidence = self.page.locator(
             '.updateOn, [class*="updateOn"], [class*="resume"] [class*="date"]'
@@ -117,10 +133,7 @@ class NaukriSite:
         raise UploadVerificationError("upload success evidence was empty")
 
     def _resume_input(self) -> Any:
-        return self.page.locator(
-            'input#attachCV[type="file"], input[type="file"][name*="resume" i], '
-            'input[type="file"][accept*="pdf" i]'
-        )
+        return self.page.locator(RESUME_SELECTOR)
 
     def _count(self, selector: str) -> int:
         return self.page.locator(selector).count()

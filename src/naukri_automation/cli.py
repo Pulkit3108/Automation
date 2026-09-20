@@ -200,16 +200,40 @@ def _login(
         ) as session:
             session.page.goto(LOGIN_URL, wait_until="domcontentloaded")
             site = NaukriSite(session.page, timeout_seconds=config.timeout_seconds)
-            password = CredentialStore().get(profile_name)
-            if password and site.fill_login(config.username, password):
-                print("Stored username and password were filled; submit after review.")
-            print(
-                "Complete Naukri login in the browser. "
-                "CAPTCHA and MFA must be completed manually."
-            )
-            input("Press Enter after the profile is visible...")
-            site.open_profile()
-            if site.auth_state() != AuthState.AUTHENTICATED:
+            initial_state = site.wait_for_auth_state()
+            if initial_state == AuthState.AUTHENTICATED:
+                print("Already authenticated; the dedicated browser profile is ready.")
+                return 0
+            if initial_state == AuthState.LOGIN_REQUIRED:
+                password = CredentialStore().get(profile_name)
+                if password and site.fill_login(config.username, password):
+                    print("Stored username and password were filled; submit after review.")
+                print(
+                    "Complete Naukri login in the browser. "
+                    "CAPTCHA and MFA must be completed manually."
+                )
+                input("Press Enter after the profile is visible...")
+            else:
+                print("Could not identify the Naukri login page; waiting for manual review.")
+                input("Press Enter after the profile is visible...")
+            if session.page.is_closed():
+                print(
+                    "Browser was closed before login verification. "
+                    "The session may have been saved; run the headed dry run to confirm it."
+                )
+                return 3
+            try:
+                site.open_profile()
+                state = site.wait_for_auth_state()
+            except Exception as error:
+                if type(error).__name__ == "TargetClosedError":
+                    print(
+                        "Browser was closed before login verification. "
+                        "The session may have been saved; run the headed dry run to confirm it."
+                    )
+                    return 3
+                raise
+            if state != AuthState.AUTHENTICATED:
                 print(
                     "Login was not confirmed. "
                     "The browser profile was retained for another attempt."

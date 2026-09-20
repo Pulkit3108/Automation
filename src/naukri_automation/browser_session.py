@@ -74,14 +74,15 @@ class BrowserSession:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        try:
-            if self._tracing:
+        if self._tracing:
+            with suppress(Exception):
                 self.context.tracing.stop()
-                self._tracing = False
-        finally:
-            if self.context is not None:
+            self._tracing = False
+        if self.context is not None:
+            with suppress(Exception):
                 self.context.close()
-            if self._playwright is not None:
+        if self._playwright is not None:
+            with suppress(Exception):
                 self._playwright.stop()
 
     def capture_failure(self, artifact_dir: Path) -> None:
