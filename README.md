@@ -140,7 +140,8 @@ shared. CAPTCHA and MFA remain manual.
 If the profile is already authenticated, the command confirms it and exits. If Naukri rejects the
 email or password, the browser closes and the command prints the exact credential and username
 update commands. A recognized CAPTCHA or MFA challenge stays open for manual completion. Unknown
-login outcomes stop after the configured timeout instead of waiting indefinitely.
+login outcomes stop after the configured timeout instead of waiting indefinitely and save a local
+screenshot and Playwright trace under the profile's artifacts directory.
 
 ### 4. Perform A Headed Dry Run
 

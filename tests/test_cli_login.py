@@ -15,12 +15,16 @@ class _FakeBrowserSession:
     def __init__(self, *, closed: bool = True) -> None:
         self.page = MagicMock()
         self.page.is_closed.return_value = closed
+        self.captured: Path | None = None
 
     def __enter__(self) -> _FakeBrowserSession:
         return self
 
     def __exit__(self, *args: object) -> None:
         return None
+
+    def capture_failure(self, artifact_dir: Path) -> None:
+        self.captured = artifact_dir
 
 
 class LoginCommandTests(unittest.TestCase):
@@ -107,6 +111,25 @@ class LoginCommandTests(unittest.TestCase):
             self.assertEqual(3, result)
             prompt.assert_not_called()
             site.open_profile.assert_not_called()
+
+    def test_unknown_initial_page_captures_diagnostics_and_stops(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._profile_fixture(Path(directory))
+            session = _FakeBrowserSession(closed=False)
+            site = MagicMock()
+            site.wait_for_auth_state.return_value = AuthState.UNKNOWN
+
+            with (
+                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("naukri_automation.cli.BrowserSession", return_value=session),
+                patch("naukri_automation.cli.NaukriSite", return_value=site),
+                patch("builtins.input") as prompt,
+            ):
+                result = _login(paths.config_file, paths, "personal")
+
+            self.assertEqual(3, result)
+            self.assertIsNotNone(session.captured)
+            prompt.assert_not_called()
 
     @staticmethod
     def _profile_fixture(root: Path) -> ProfilePaths:

@@ -70,6 +70,24 @@ class NaukriSiteTests(unittest.TestCase):
         button.wait_for.assert_called_once_with(state="visible", timeout=10_000)
         button.click.assert_called_once_with()
 
+    def test_open_login_uses_visible_login_link_when_form_is_absent(self) -> None:
+        page = MagicMock()
+        form = _locator()
+        form.wait_for.side_effect = RuntimeError("form not visible")
+        button = _locator(count=0)
+        link = _locator()
+        link.is_visible.return_value = True
+        page.locator.return_value = form
+        page.get_by_role.side_effect = lambda role, **kwargs: (
+            button if role == "button" else link
+        )
+        site = NaukriSite(page, timeout_seconds=10)
+
+        site.open_login()
+
+        page.goto.assert_called_once_with(LOGIN_URL, wait_until="domcontentloaded")
+        link.click.assert_called_once_with()
+
     def test_invalid_credentials_are_classified(self) -> None:
         page = MagicMock()
         page.url = LOGIN_URL

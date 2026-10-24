@@ -7,7 +7,11 @@ from typing import Any
 
 LOGIN_URL = "https://www.naukri.com/nlogin/login"
 PROFILE_URL = "https://www.naukri.com/mnjuser/profile"
-USERNAME_SELECTOR = 'input#usernameField, input#emailTxt, input[name="username"]'
+USERNAME_SELECTOR = (
+    'input#usernameField, input#emailTxt, input[name="username"], '
+    'input[autocomplete="username"], input[type="email"], '
+    'input[placeholder*="email" i], input[placeholder*="username" i]'
+)
 PASSWORD_SELECTOR = 'input#passwordField, input#pwd1, input[type="password"]'
 LOGIN_BUTTON_SELECTOR = (
     'button[type="submit"]:has-text("Login"), button.btn-primary:has-text("Login")'
@@ -57,6 +61,26 @@ class NaukriSite:
 
     def open_profile(self) -> None:
         self.page.goto(PROFILE_URL, wait_until="domcontentloaded")
+
+    def open_login(self) -> None:
+        self.page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        form = self.page.locator(f"{USERNAME_SELECTOR}, {PASSWORD_SELECTOR}").first
+        try:
+            form.wait_for(state="visible", timeout=min(self.timeout_ms, 5_000))
+            return
+        except Exception:
+            pass
+        for role in ("button", "link"):
+            control = self.page.get_by_role(
+                role,
+                name=re.compile(r"^\s*log\s*in\s*$", re.IGNORECASE),
+            ).first
+            try:
+                if control.count() and control.is_visible():
+                    control.click()
+                    return
+            except Exception:
+                continue
 
     def fill_login(self, username: str, password: str) -> bool:
         username_input = self.page.locator(USERNAME_SELECTOR).first

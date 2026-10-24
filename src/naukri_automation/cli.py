@@ -7,6 +7,7 @@ import logging.handlers
 import shutil
 import sys
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 from naukri_automation import __version__
@@ -20,7 +21,7 @@ from naukri_automation.config import (
     write_config,
 )
 from naukri_automation.credentials import CredentialStore
-from naukri_automation.naukri_site import LOGIN_URL, AuthState, NaukriSite
+from naukri_automation.naukri_site import AuthState, NaukriSite
 from naukri_automation.paths import AppPaths, ProfilePaths, get_app_paths
 from naukri_automation.profile_cli import add_management_parsers, handle_management_command
 from naukri_automation.profile_store import resolve_profile_name
@@ -216,15 +217,21 @@ def _login(
             headless=False,
             timeout_seconds=config.timeout_seconds,
         ) as session:
-            session.page.goto(LOGIN_URL, wait_until="domcontentloaded")
             site = NaukriSite(session.page, timeout_seconds=config.timeout_seconds)
+            site.open_login()
             initial_state = site.wait_for_auth_state()
             if initial_state == AuthState.AUTHENTICATED:
                 print("Already authenticated; the dedicated browser profile is ready.")
                 return 0
             if initial_state == AuthState.LOGIN_REQUIRED:
                 password = CredentialStore().get(profile_name)
-                if password and site.fill_login(config.username, password):
+                if not password:
+                    print(
+                        "No stored password is available. Run: naukri-auto credentials update "
+                        f"--profile {profile_name}"
+                    )
+                    return 3
+                if site.fill_login(config.username, password):
                     if not site.submit_login():
                         LOGGER.warning("login button was not found for profile %s", profile_name)
                         print("The login button was not found; the site contract may have changed.")
@@ -263,16 +270,30 @@ def _login(
                             "inspect the browser and local log."
                         )
                         print(f"Log: {paths.logs / 'naukri-auto.log'}")
+                        _capture_login_failure(session, paths)
                         return 3
                 else:
+                    LOGGER.warning("login fields were not identified for profile %s", profile_name)
                     print(
-                        "Stored credentials could not be filled. Complete login manually; "
-                        "CAPTCHA and MFA must remain manual."
+                        "The login fields were not identified; the site contract may have changed."
                     )
-                    input("Press Enter after the profile is visible...")
-            else:
-                print("Could not identify the Naukri login page; waiting for manual review.")
+                    _capture_login_failure(session, paths)
+                    return 3
+            elif initial_state == AuthState.CHALLENGE_REQUIRED:
+                print("Complete CAPTCHA or MFA manually in the browser.")
                 input("Press Enter after the profile is visible...")
+            elif initial_state == AuthState.INVALID_CREDENTIALS:
+                print("Naukri is already showing an invalid-credential error.")
+                print(
+                    "Update password: naukri-auto credentials update "
+                    f"--profile {profile_name}"
+                )
+                return 3
+            else:
+                LOGGER.warning("initial login page was not identified for profile %s", profile_name)
+                print("Could not identify the Naukri login page; stopping safely.")
+                _capture_login_failure(session, paths)
+                return 3
             if session.page.is_closed():
                 print(
                     "Browser was closed before login verification. "
@@ -300,6 +321,14 @@ def _login(
         raise ConfigurationError("another login or automation run is active") from error
     print("Login confirmed; the dedicated browser profile is ready.")
     return 0
+
+
+def _capture_login_failure(session: BrowserSession, paths: ProfilePaths) -> None:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    artifact_dir = paths.artifacts / f"login-{timestamp}"
+    session.capture_failure(artifact_dir)
+    print(f"Artifacts: {artifact_dir}")
+    print(f"Log: {paths.logs / 'naukri-auto.log'}")
 
 
 def _schedule(
