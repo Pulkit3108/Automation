@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from naukri_automation.config import ScheduleConfig
-from naukri_automation.scheduling.windows import SchedulerError
+from naukri_automation.scheduling.base import SchedulerError
 
 WEEKDAYS = {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7}
 
@@ -64,8 +64,16 @@ class MacOSScheduler:
         self._run("bootstrap", self.domain, str(self.plist_path))
         return f"Installed launchd agent {self.label}"
 
-    def show(self) -> str:
-        return self._run("print", f"{self.domain}/{self.label}")
+    def show(self, *, verbose: bool = False) -> str:
+        if verbose:
+            return self._run("print", f"{self.domain}/{self.label}")
+        return "\n".join(
+            [
+                f"Job: {self.label}",
+                f"Status: {'loaded' if self.is_installed() else 'not loaded'}",
+                f"Definition: {self.plist_path}",
+            ]
+        )
 
     def run_now(self) -> str:
         return self._run("kickstart", "-k", f"{self.domain}/{self.label}")

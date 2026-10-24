@@ -2,157 +2,173 @@
 
 ## Purpose
 
-The application uploads a selected résumé to a Naukri profile as a safe one-shot operation.
-Persistent native scheduling and manual operation are supported on Windows, macOS, and Linux.
+The application performs a verified one-shot résumé update against one configured Naukri profile.
+Manual and scheduled entry points use the same workflow. Native operating-system schedulers own
+timing; the Python application never remains resident as a scheduling daemon.
 
-The application performs one run and exits. The operating-system scheduler owns timing.
+User installation and commands belong in [`setup/`](setup/README.md). Repository-maintenance rules
+belong in [`AGENTS.md`](AGENTS.md). This document owns architecture and durable design decisions.
 
-## Architecture
+## Core Principles
+
+- Validate configuration and the managed résumé before opening a browser.
+- Keep credentials exclusively in the OS keyring.
+- Reuse private browser session data without keeping a browser process alive.
+- Treat CAPTCHA and MFA as manual challenges and never bypass them.
+- Stop before upload during a dry run.
+- Report success only after new post-upload UI evidence appears.
+- Never retry an upload whose outcome is unknown.
+- Use native, least-privileged, persistent schedulers.
+- Prevent overlapping work at both scheduler and application layers.
+- Keep logs and failure artifacts bounded and outside Git.
+
+## System Flow
 
 ```text
-Native user scheduler
+Manual CLI or native scheduler
         |
         v
-  naukri-auto run --profile <name>
+resolve named profile and platform paths
         |
-        +--> validate config and resume
-        +--> acquire single-run lock
-        +--> open dedicated Playwright profile
-        +--> verify or establish authentication
-        +--> locate resume section
-        +--> upload exact configured file
-        +--> verify filename/update evidence
-        +--> write sanitized result and artifacts
-        +--> send optional notification
-        +--> exit with stable status
+        v
+validate configuration and managed résumé
+        |
+        v
+acquire per-profile process lock
+        |
+        v
+launch one persistent-data browser context
+        |
+        +--> classify authentication
+        +--> inspect résumé section
+        +--> stop here for dry run
+        +--> select exact managed résumé
+        +--> wait for any valid post-upload evidence
+        |
+        v
+write structured result and rotating log
+        |
+        +--> retain bounded failure evidence when needed
+        +--> attempt optional notification
+        |
+        v
+close browser context and release lock
 ```
 
-The Python process will not remain running as a daemon and will not implement its own scheduling loop.
+## Component Boundaries
 
-## Technology Choices
+| Component | Responsibility |
+| --- | --- |
+| `cli.py` | Command parsing, orchestration, readiness checks, and user-facing outcomes |
+| `profile_cli.py` | Profile, credential, résumé, and cleanup lifecycle |
+| `schedule_cli.py` | Schedule-rule commands and native scheduler orchestration |
+| `profile_store.py` | Managed profile configuration and résumé storage |
+| `config.py` | Typed configuration, schedule rules, validation, and TOML rendering |
+| `credentials.py` | OS-keyring access without plaintext fallback |
+| `browser_session.py` | Playwright lifecycle, persistent browser data, tracing, and cleanup |
+| `naukri_site.py` | Naukri URLs, selectors, authentication classification, and upload evidence |
+| `workflow.py` | Locked dry-run/upload state machine and stable results |
+| `run_lock.py` | Per-profile mutual exclusion and dead-owner recovery |
+| `result.py` | Stable outcomes, exit codes, and atomic result persistence |
+| `notifications.py` | Optional best-effort sanitized notification delivery |
+| `scheduling/base.py` | Shared native scheduler contract and errors |
+| `scheduling/` platform modules | Windows, macOS, and Linux job generation and management |
 
-- Python 3.12 or newer.
-- Playwright's synchronous Python API with an explicit Chrome, Edge, or managed Chromium channel.
-- A `pyproject.toml` package with a `naukri-auto` console command.
-- Typed per-profile TOML configuration stored in the user's application-data directory.
-- `keyring` for credentials in Windows Credential Manager, macOS Keychain, or a supported Linux keyring.
-- Windows Task Scheduler, macOS `launchd`, or Linux `systemd --user` for persistent scheduling.
-- `pytest` and Ruff for automated verification.
+Naukri-specific page behavior stays in `naukri_site.py`; platform scheduler behavior stays in the
+matching scheduler module. Core profile and workflow code remains platform-neutral.
 
-Playwright provides persistent browser contexts, actionable-element waiting, installed-browser channels, and failure traces. The default `chrome` channel uses the installed browser and does not require a separate browser download.
-Windows and macOS desktop launches explicitly enable Playwright's Chromium sandbox; Linux keeps
-Playwright's platform default.
+## Profile And Local Data Model
 
-## Commands
+Each named profile owns:
 
-### `naukri-auto profile create|list|show|edit|default|remove`
+- username or email;
+- one selected managed résumé plus optional inactive managed copies;
+- browser channel and headed/headless preference;
+- timeout, retention, size, notification, and schedule settings;
+- an OS-keyring entry keyed by profile name;
+- a dedicated browser-data directory, log, result, artifacts, and lock;
+- one native scheduler job.
 
-Create and manage isolated profiles containing:
+Configuration lives in the platform configuration directory. Mutable and sensitive state lives in
+the platform data directory. The repository contains neither runtime configuration nor user data.
 
-- profile name and Naukri username;
-- managed résumé collection and active résumé;
-- browser channel (`chrome`, `msedge`, or `chromium`);
-- daily or weekly schedule and local timezone;
-- headed or headless scheduled execution;
-- optional notification endpoint/topic in the non-secret profile TOML;
-- diagnostic artifact retention.
+Profile removal is a confirmed lifecycle operation. It verifies/removes the scheduler job, removes
+the keyring credential, then deletes managed configuration and mutable state. It never deletes the
+repository or the original résumé used for import.
 
-Passwords are collected only through hidden prompts and stored in the OS keyring. Configuration must never contain a password, session cookie, or browser token.
+## Authentication State Machine
 
-Profile removal is a confirmed lifecycle operation. It removes the installed native scheduler job,
-the profile's keyring credential, configuration, managed résumés, browser session, logs, artifacts,
-result, and default-profile pointer. It never deletes the source résumé or repository.
+The login flow classifies the page as:
 
-### `naukri-auto resume add|list|select|remove`
+- authenticated;
+- login required;
+- invalid credentials;
+- visible CAPTCHA/MFA challenge;
+- unknown contract.
 
-Copy résumés into a dedicated per-profile folder, retain multiple choices, and select exactly one active file without silently overwriting an existing import.
+A recognized form may be filled and submitted from the keyring. Hidden CAPTCHA markup does not
+count as an active challenge. Invalid credentials close cleanly with recovery guidance. Visible
+CAPTCHA or MFA waits for manual completion. Unknown pages stop after a bounded timeout and save a
+private screenshot and Playwright trace.
 
-### `naukri-auto login --profile <name>`
+The browser profile retains cookies and authentication state across runs. Credential values are
+never written to configuration, arguments, logs, results, notifications, screenshots by the
+application, or test fixtures.
 
-Open the selected browser with a dedicated automation profile and let the user log in interactively. The profile is reused by scheduled runs. If CAPTCHA or MFA appears later, the run stops with `AUTH_REQUIRED` and asks the user to refresh this profile.
+## Upload Correctness
 
-When logged out, the command may fill and submit username/password from the OS credential store
-after the login form is recognized. It must classify authenticated, rejected, challenge-required,
-and unknown outcomes; rejected or unknown outcomes close cleanly with recovery guidance. CAPTCHA
-and MFA remain manual. When already authenticated, it confirms the persisted session without
-reading the credential.
+The dry-run path cannot invoke file selection. A real upload selects exactly the configured managed
+file and waits once for any of these new post-upload signals:
 
-### `naukri-auto doctor`
+- a success message;
+- a filename that was not visible before selection;
+- changed résumé update evidence.
 
-Perform side-effect-free checks:
+An already-visible filename is not proof of a new upload. Verification timeout produces
+`UPLOAD_FAILED`, retains diagnostics, and explicitly forbids automatic retry.
 
-- package and browser installation;
-- configuration schema;
-- resume existence, readability, type, non-empty content, and maximum size;
-- application-data and profile permissions;
-- scheduler availability;
-- notification configuration.
+## Scheduling Architecture
 
-It must not log in, select a file, upload a resume, or send a test notification unless separately requested.
+Schedules contain independent rules. Each rule has one or more local `HH:MM` times and either all
+days or selected weekdays. Overlapping day/time occurrences are rejected. The total is bounded by
+the Windows maximum of 48 native triggers.
 
-### `naukri-auto run --dry-run`
+| Platform | Implementation | Persistence model |
+| --- | --- | --- |
+| Windows | Task Scheduler XML | Current interactive user task |
+| macOS | `~/Library/LaunchAgents` plist | Per-user GUI LaunchAgent |
+| Linux | `~/.config/systemd/user` service and timer | Enabled user timer |
 
-Open the site, verify authentication, and find the resume section. Stop before selecting or uploading a file. The design must make it impossible for the dry-run path to invoke the upload operation.
+Windows task XML includes the current user, interactive-token logon, least privilege, absolute
+executable and working-directory paths, `IgnoreNew`, battery-safe behavior, optional wake, and a
+30-minute execution limit. Import XML is written as UTF-16 bytes with a matching declaration and
+BOM.
 
-### `naukri-auto run`
+Installed jobs survive terminal closure and reboot. The user session must be signed in so the
+keyring and dedicated browser profile are available. Screen lock and display sleep do not prevent a
+headless run. A powered-off machine cannot execute work.
 
-Perform one update attempt, verify the resulting UI, record the outcome, and exit. Merely calling Playwright's file-input method is not proof of success.
+## Concurrency And Resource Lifecycle
 
-### `naukri-auto schedule set|add|list|install|show|run-now|remove`
+Two independent controls prevent overlap:
 
-Configure independent day-and-time rules and manage only the application's native user scheduler
-job. Installation should display the exact schedule before applying it. The job should:
+1. the native scheduler refuses or ignores a second instance for the same job;
+2. the per-profile lock protects manual and scheduled entry points.
 
-- run as the current non-administrator user, never `SYSTEM`;
-- identify that user explicitly in the task principal and use an interactive-token logon;
-- support independent everyday and selected-weekday rules with one or more local times;
-- use absolute executable and working-directory paths;
-- write Windows task-import XML as UTF-16 bytes with a matching declaration and BOM;
-- wake the computer from sleep when permitted;
-- start when a scheduled run was missed;
-- reject overlapping runs;
-- stop after a maximum duration;
-- expose last and next run status through `schedule show`.
+A live same-host owner keeps the lock. A dead same-host owner is reclaimed immediately. Unreadable
+or foreign lock metadata expires after the configured stale interval.
 
-## Local Data And Secrets
+Every run starts one browser process and persistent-data context. The process and context close in
+the context-manager cleanup path on success or failure. Cookies and session data persist; browser
+processes do not. Successful traces are stopped and discarded. Failure screenshots and traces are
+retained only under the profile artifacts directory and are pruned by retention policy.
 
-Use platform application-data directories rather than the repository:
+Application logs rotate at 1 MB with five backups. Result writes use a temporary file and atomic
+replacement. Optional notification failure never changes a verified upload into a failure.
 
-```text
-Windows configuration: %APPDATA%\NaukriAutomation\profiles\<name>\profile.toml
-Windows mutable data:  %LOCALAPPDATA%\NaukriAutomation\profiles\<name>\
-```
+## Results And Diagnostics
 
-Each mutable profile directory may contain managed résumés, a dedicated browser profile, logs, run lock, result, screenshots, and Playwright traces. Authentication state is sensitive and must never be committed, printed, archived, or uploaded.
-
-The repository must exclude:
-
-- real resumes and generated PDFs;
-- local configuration;
-- credentials and environment files;
-- browser profiles, cookies, or storage state;
-- screenshots, traces, and logs;
-- virtual environments, caches, build output, and `.DS_Store`.
-
-The application uploads the exact managed résumé and never mutates its contents. If Naukri rejects identical content, the run fails explicitly rather than modifying the document.
-
-## Workflow Boundaries
-
-Keep Naukri-specific UI behavior in one module. Prefer locators based on role, label, and visible text, with narrow fallbacks. Avoid hard-coded sleeps.
-
-The workflow must:
-
-1. validate all local inputs before opening the browser;
-2. acquire a lock before external work;
-3. distinguish authenticated, logged-out, CAPTCHA/MFA, and unexpected-page states;
-4. stop safely when the site contract is unknown;
-5. upload only after all preconditions pass;
-6. verify filename and last-updated evidence after upload;
-7. close the browser and release the lock in every outcome.
-
-## Results, Retries, And Diagnostics
-
-Stable result categories:
+Stable outcomes are:
 
 - `SUCCESS`
 - `DRY_RUN_SUCCESS`
@@ -165,75 +181,51 @@ Stable result categories:
 - `DEPENDENCY_ERROR`
 - `INTERNAL_ERROR`
 
-Runs are not retried automatically. This prevents a duplicate upload when an earlier attempt has an unknown outcome.
-
-On failure, retain:
-
-- a sanitized structured log;
-- a screenshot;
-- a Playwright trace when enabled;
-- the result category, timestamp, host, and application version.
-
-Apply bounded retention. Never retain credentials, cookies, full HTML/body dumps, or resume contents in logs or notifications.
-
-Notifications are optional and best-effort. Notification failure does not change a successful upload into an upload failure.
+Each result contains a UTC timestamp, sanitized message, optional private artifact path, and stable
+exit code. Logs record outcome categories and exception types without credentials, cookies, résumé
+contents, or full page bodies.
 
 ## Repository Layout
 
 ```text
 Automation/
-  pyproject.toml
-  README.md
+  AGENTS.md
   DESIGN.md
-  LICENSE
-  .gitignore
+  README.md
   config.example.toml
+  pyproject.toml
+  setup/
+    README.md
+    windows.md
+    macos-linux.md
   src/naukri_automation/
-    __init__.py
+    browser_session.py
     cli.py
     config.py
     credentials.py
+    naukri_site.py
+    notifications.py
     paths.py
     profile_cli.py
     profile_store.py
+    schedule_cli.py
     result.py
     run_lock.py
     workflow.py
-    browser_session.py
-    naukri_site.py
-    notifications.py
     scheduling/
-      __init__.py
+      base.py
       windows.py
+      macos.py
+      linux.py
   tests/
-    test_config.py
-    test_browser_session.py
-    test_cli_login.py
-    test_naukri_site.py
-    test_profiles.py
-    test_workflow.py
-    test_notifications.py
-    test_windows_schedule.py
+    test_schedule_cli.py
 ```
-
-Scheduler management and core commands are cross-platform. Each scheduler implementation remains
-isolated behind the same CLI lifecycle.
-
-## Deployment Model
-
-The native scheduler keeps authentication local and reuses a dedicated browser profile. Installed
-jobs survive terminal closure and reboot. The user must be signed in so the OS keyring and browser
-profile are available; screen lock and display sleep do not disable a scheduled headless run. No
-automation can execute while the machine is fully powered off.
-
-An always-on host can be added later if execution must be independent of the personal computer. Hosted CI runners are not a supported runtime because they require exporting the browser session and résumé outside the user's machine.
 
 ## Official References
 
-- [Playwright Python library](https://playwright.dev/python/docs/library)
-- [Playwright auto-waiting](https://playwright.dev/python/docs/actionability)
-- [Playwright authentication state](https://playwright.dev/python/docs/auth)
+- [Playwright Python](https://playwright.dev/python/docs/library)
 - [Playwright persistent contexts](https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context)
-- [Microsoft `schtasks`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks)
-- [Microsoft Task Scheduler `WakeToRun`](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-waketorun)
+- [Microsoft Task Scheduler](https://learn.microsoft.com/en-us/windows/win32/api/_taskschd/)
+- [Apple timed jobs with launchd](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/ScheduledJobs.html)
+- [systemd timers](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
 - [Python keyring](https://keyring.readthedocs.io/en/stable/)

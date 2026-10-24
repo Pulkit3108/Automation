@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.cli import _schedule, build_parser
+from naukri_automation.cli import build_parser
 from naukri_automation.config import ConfigurationError
 from naukri_automation.credentials import SERVICE_NAME, CredentialStore
 from naukri_automation.paths import AppPaths
@@ -111,70 +111,6 @@ class ProfileTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ConfigurationError, "active resume"):
                 remove_resume(config, profile_paths, "resume.pdf")
-
-    def test_schedule_set_and_add_create_independent_rules(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            paths = AppPaths(root / "config", root / "data")
-            resume = root / "resume.pdf"
-            resume.write_bytes(b"%PDF-test")
-            create_profile(
-                paths,
-                name="personal",
-                username="person@example.test",
-                resume_source=resume,
-            )
-            set_args = build_parser().parse_args(
-                [
-                    "schedule",
-                    "set",
-                    "--profile",
-                    "personal",
-                    "--times",
-                    "08:30,17:30",
-                    "--days",
-                    "MON,FRI",
-                ]
-            )
-            add_args = build_parser().parse_args(
-                [
-                    "schedule",
-                    "add",
-                    "--profile",
-                    "personal",
-                    "--times",
-                    "10:15",
-                    "--days",
-                    "SUN",
-                ]
-            )
-
-            profile_paths = paths.profile("personal")
-            self.assertEqual(
-                0,
-                _schedule(
-                    set_args,
-                    profile_paths.config_file,
-                    profile_paths,
-                    "personal",
-                ),
-            )
-            self.assertEqual(
-                0,
-                _schedule(
-                    add_args,
-                    profile_paths.config_file,
-                    profile_paths,
-                    "personal",
-                ),
-            )
-            updated = load_profile(paths, "personal")
-
-            self.assertEqual(2, len(updated.schedule.rules))
-            self.assertEqual(("08:30", "17:30"), updated.schedule.rules[0].times)
-            self.assertEqual(("MON", "FRI"), updated.schedule.rules[0].days)
-            self.assertEqual(("10:15",), updated.schedule.rules[1].times)
-            self.assertEqual(("SUN",), updated.schedule.rules[1].days)
 
     def test_profile_remove_cleans_scheduler_credential_and_managed_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

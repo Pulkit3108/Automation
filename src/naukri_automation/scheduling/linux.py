@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 from naukri_automation.config import ScheduleConfig
-from naukri_automation.scheduling.windows import SchedulerError
+from naukri_automation.scheduling.base import SchedulerError
 
 WEEKDAYS = {
     "MON": "Mon",
@@ -73,8 +73,16 @@ class LinuxScheduler:
         self._run("enable", "--now", f"{self.base_name}.timer")
         return f"Installed systemd user timer {self.base_name}.timer"
 
-    def show(self) -> str:
-        return self._run("status", "--no-pager", f"{self.base_name}.timer")
+    def show(self, *, verbose: bool = False) -> str:
+        if verbose:
+            return self._run("status", "--no-pager", f"{self.base_name}.timer")
+        return "\n".join(
+            [
+                f"Job: {self.base_name}.timer",
+                f"Status: {'enabled' if self.is_installed() else 'not enabled'}",
+                f"Definition: {self.timer_path}",
+            ]
+        )
 
     def run_now(self) -> str:
         return self._run("start", f"{self.base_name}.service")

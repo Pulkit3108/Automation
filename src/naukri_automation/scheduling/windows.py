@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -7,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from naukri_automation.config import ScheduleConfig, ScheduleRule
+from naukri_automation.scheduling.base import SchedulerError
 
 TASK_NAME = "NaukriResumeAutomation"
 TASK_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
@@ -19,10 +21,6 @@ DAY_TAGS = {
     "SAT": "Saturday",
     "SUN": "Sunday",
 }
-
-
-class SchedulerError(RuntimeError):
-    pass
 
 
 def build_task_xml(
@@ -129,8 +127,21 @@ class WindowsScheduler:
         )
         return self.install(task_xml, data_directory / "task.xml")
 
-    def show(self) -> str:
-        return self._run("/Query", "/TN", self.task_name, "/V", "/FO", "LIST")
+    def show(self, *, verbose: bool = False) -> str:
+        if verbose:
+            return self._run("/Query", "/TN", self.task_name, "/V", "/FO", "LIST")
+        output = self._run("/Query", "/TN", self.task_name, "/FO", "CSV", "/NH")
+        try:
+            task_name, next_run, status, *_ = next(csv.reader(output.splitlines()))
+        except (StopIteration, ValueError) as error:
+            raise SchedulerError("Task Scheduler returned an unreadable summary") from error
+        return "\n".join(
+            [
+                f"Task: {task_name}",
+                f"Status: {status}",
+                f"Next run: {next_run}",
+            ]
+        )
 
     def run_now(self) -> str:
         return self._run("/Run", "/TN", self.task_name)

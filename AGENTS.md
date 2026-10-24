@@ -64,7 +64,9 @@
 
 ## Documentation
 
-- Keep `README.md` user-facing: features, installation, setup, commands, troubleshooting, and security.
+- Keep `README.md` as a concise product overview and documentation router.
+- Keep platform-neutral usage under `setup/README.md` and platform-specific installation or
+  troubleshooting under `setup/windows.md` or `setup/macos-linux.md`.
 - Keep `DESIGN.md` limited to current architecture, invariants, and durable design decisions.
 - Do not add task progress, milestone history, migration history, completed/pending work lists, or temporary validation notes to repository documentation.
 - Keep command examples synchronized with `naukri-auto --help` and use synthetic values.

@@ -60,8 +60,11 @@ class RunLock(AbstractContextManager["RunLock"]):
             same_host = False
             pid = -1
 
-        if same_host and _process_exists(pid):
-            return False
+        if same_host:
+            if _process_exists(pid):
+                return False
+            shutil.rmtree(self.path)
+            return True
         if age < self.stale_after_seconds:
             return False
 

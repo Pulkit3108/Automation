@@ -149,6 +149,36 @@ class WindowsScheduleTests(unittest.TestCase):
             self.assertEqual("created", result)
             self.assertFalse(task_path.exists())
 
+    def test_compact_show_formats_only_relevant_status(self) -> None:
+        with patch("naukri_automation.scheduling.windows.sys.platform", "win32"):
+            scheduler = WindowsScheduler(task_name="NaukriResumeAutomation-personal")
+        native = '"\\NaukriResumeAutomation-personal","25-10-2026 09:00:00","Ready"'
+
+        with patch.object(scheduler, "_run", return_value=native) as run:
+            output = scheduler.show()
+
+        self.assertEqual(
+            "Task: \\NaukriResumeAutomation-personal\n"
+            "Status: Ready\n"
+            "Next run: 25-10-2026 09:00:00",
+            output,
+        )
+        run.assert_called_once_with(
+            "/Query",
+            "/TN",
+            "NaukriResumeAutomation-personal",
+            "/FO",
+            "CSV",
+            "/NH",
+        )
+
+    def test_verbose_show_preserves_native_output(self) -> None:
+        with patch("naukri_automation.scheduling.windows.sys.platform", "win32"):
+            scheduler = WindowsScheduler()
+        with patch.object(scheduler, "_run", return_value="native details") as run:
+            self.assertEqual("native details", scheduler.show(verbose=True))
+        run.assert_called_once_with("/Query", "/TN", "NaukriResumeAutomation", "/V", "/FO", "LIST")
+
 
 if __name__ == "__main__":
     unittest.main()
