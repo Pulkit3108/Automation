@@ -79,7 +79,7 @@ class PlatformScheduleTests(unittest.TestCase):
             timer = scheduler.timer_path.read_text(encoding="utf-8")
             self.assertIn("-m naukri_automation run --profile personal", service)
             self.assertIn("OnCalendar=Mon,Wed,Fri *-*-* 13:30:00", timer)
-            self.assertIn("Persistent=true", timer)
+            self.assertIn("Persistent=false", timer)
             run.assert_any_call("enable", "--now", "naukri-resume-automation-personal.timer")
 
 

@@ -146,7 +146,8 @@ BOM.
 
 Installed jobs survive terminal closure and reboot. The user session must be signed in so the
 keyring and dedicated browser profile are available. Screen lock and display sleep do not prevent a
-headless run. A powered-off machine cannot execute work.
+headless run. A powered-off machine cannot execute work, and missed times are skipped rather than
+replayed after startup.
 
 ## Concurrency And Resource Lifecycle
 

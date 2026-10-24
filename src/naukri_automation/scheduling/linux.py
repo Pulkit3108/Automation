@@ -58,7 +58,7 @@ class LinuxScheduler:
                 "",
                 "[Timer]",
                 *calendar_lines,
-                "Persistent=true",
+                "Persistent=false",
                 "AccuracySec=1min",
                 f"Unit={self.base_name}.service",
                 "",

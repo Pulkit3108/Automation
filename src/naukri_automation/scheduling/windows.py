@@ -75,7 +75,7 @@ def build_task_xml(
     ET.SubElement(settings, _tag("MultipleInstancesPolicy")).text = "IgnoreNew"
     ET.SubElement(settings, _tag("DisallowStartIfOnBatteries")).text = "false"
     ET.SubElement(settings, _tag("StopIfGoingOnBatteries")).text = "false"
-    ET.SubElement(settings, _tag("StartWhenAvailable")).text = "true"
+    ET.SubElement(settings, _tag("StartWhenAvailable")).text = "false"
     ET.SubElement(settings, _tag("WakeToRun")).text = str(schedule.wake_computer).lower()
     ET.SubElement(settings, _tag("ExecutionTimeLimit")).text = "PT30M"
 

@@ -62,6 +62,10 @@ class WindowsScheduleTests(unittest.TestCase):
         )
         self.assertEqual("true", root.findtext(".//task:WakeToRun", namespaces=NS))
         self.assertEqual(
+            "false",
+            root.findtext(".//task:StartWhenAvailable", namespaces=NS),
+        )
+        self.assertEqual(
             "IgnoreNew",
             root.findtext(".//task:MultipleInstancesPolicy", namespaces=NS),
         )

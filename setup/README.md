@@ -120,10 +120,12 @@ The configured rules remain available and can be installed again later.
 
 ## Persistence And Resource Behavior
 
-- Installed jobs survive terminal closure and reboot.
+- Installed jobs survive terminal closure and reboot. Missed times while powered off are skipped;
+  only the next future rule runs.
 - Sign in to the same OS account before a scheduled time so the keyring and browser profile are
   available. A locked screen or inactive display does not block a headless run.
-- Native scheduling and a per-profile process lock prevent overlap.
+- Native scheduling and a per-profile process lock prevent overlap. Missed occurrences are not
+  replayed as a backlog.
 - Each run reuses cookies/session data but creates and closes one browser process and context.
 - Successful traces are discarded. Failure artifacts follow the configured retention period.
 - Logs rotate at 1 MB with five backups. Windows jobs have a 30-minute execution limit.

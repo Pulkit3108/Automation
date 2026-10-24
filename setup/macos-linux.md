@@ -38,10 +38,11 @@ Keychain and the browser profile are available.
 ~/.config/systemd/user/naukri-resume-automation-<profile>.timer
 ```
 
-The timer is enabled immediately and uses persistent calendar rules. Application output remains in
-the profile's rotating log; native unit diagnostics are available through `schedule show --verbose`
-or the user journal. A graphical signed-in session is normally required for Secret Service and the
-dedicated browser profile.
+The timer is enabled immediately and uses non-catch-up calendar rules, so times missed while the
+machine is powered off are skipped. Application output remains in the profile's rotating log;
+native unit diagnostics are available through `schedule show --verbose` or the user journal. A
+graphical signed-in session is normally required for Secret Service and the dedicated browser
+profile.
 
 ## Browser Choice
 

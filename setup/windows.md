@@ -45,8 +45,9 @@ The task is named `NaukriResumeAutomation-<profile>` and runs as the current int
 least privilege. It supports multiple daily or selected-weekday triggers, ignores overlapping task
 instances, may wake the computer when enabled and supported, and stops after 30 minutes.
 
-The account must be signed in. Locking the screen or turning off the display is supported; a fully
-powered-off machine cannot run. Compact status is available through `schedule show`; use
+The account must be signed in. Locking the screen or turning off the display is supported. A time
+missed while powered off is skipped rather than replayed after startup; the next future trigger runs
+normally. Compact status is available through `schedule show`; use
 `schedule show --verbose` only for native `schtasks.exe` diagnostics.
 
 ## Update An Existing Checkout
