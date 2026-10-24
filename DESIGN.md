@@ -2,14 +2,15 @@
 
 ## Purpose
 
-The application uploads a selected résumé to a Naukri profile as a safe one-shot operation. Windows 11 is the primary scheduled runtime; manual operation is supported on Windows, macOS, and Linux.
+The application uploads a selected résumé to a Naukri profile as a safe one-shot operation.
+Persistent native scheduling and manual operation are supported on Windows, macOS, and Linux.
 
 The application performs one run and exits. The operating-system scheduler owns timing.
 
 ## Architecture
 
 ```text
-Windows Task Scheduler
+Native user scheduler
         |
         v
   naukri-auto run --profile <name>
@@ -35,7 +36,7 @@ The Python process will not remain running as a daemon and will not implement it
 - A `pyproject.toml` package with a `naukri-auto` console command.
 - Typed per-profile TOML configuration stored in the user's application-data directory.
 - `keyring` for credentials in Windows Credential Manager, macOS Keychain, or a supported Linux keyring.
-- Windows Task Scheduler as the primary scheduler.
+- Windows Task Scheduler, macOS `launchd`, or Linux `systemd --user` for persistent scheduling.
 - `pytest` and Ruff for automated verification.
 
 Playwright provides persistent browser contexts, actionable-element waiting, installed-browser channels, and failure traces. The default `chrome` channel uses the installed browser and does not require a separate browser download.
@@ -87,12 +88,14 @@ Open the site, verify authentication, and find the resume section. Stop before s
 
 Perform one update attempt, verify the resulting UI, record the outcome, and exit. Merely calling Playwright's file-input method is not proof of success.
 
-### `naukri-auto schedule install|show|run-now|remove`
+### `naukri-auto schedule set|add|list|install|show|run-now|remove`
 
-Manage only the application's Windows scheduled task. Installation should display the exact schedule before applying it. The task should:
+Configure independent day-and-time rules and manage only the application's native user scheduler
+job. Installation should display the exact schedule before applying it. The job should:
 
 - run as the current non-administrator user, never `SYSTEM`;
 - identify that user explicitly in the task principal and use an interactive-token logon;
+- support independent everyday and selected-weekday rules with one or more local times;
 - use absolute executable and working-directory paths;
 - wake the computer from sleep when permitted;
 - start when a scheduled run was missed;
@@ -202,11 +205,15 @@ Automation/
     test_windows_schedule.py
 ```
 
-Scheduler management is Windows-only; the core commands remain cross-platform.
+Scheduler management and core commands are cross-platform. Each scheduler implementation remains
+isolated behind the same CLI lifecycle.
 
 ## Deployment Model
 
-Use the Windows 11 system and Task Scheduler first. It keeps authentication local, reuses a dedicated browser profile, and can wake a sleeping computer. It cannot operate while the machine is fully powered off.
+The native scheduler keeps authentication local and reuses a dedicated browser profile. Installed
+jobs survive terminal closure and reboot. The user must be signed in so the OS keyring and browser
+profile are available; screen lock and display sleep do not disable a scheduled headless run. No
+automation can execute while the machine is fully powered off.
 
 An always-on host can be added later if execution must be independent of the personal computer. Hosted CI runners are not a supported runtime because they require exporting the browser session and résumé outside the user's machine.
 

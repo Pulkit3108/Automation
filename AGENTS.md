@@ -4,7 +4,9 @@
 
 - `src/naukri_automation/` is the supported implementation. Do not recreate root-level ad hoc automation scripts.
 - Keep manual profile, credential, résumé, login, doctor, and run commands compatible with Windows, macOS, and Linux.
-- Windows Task Scheduler is the only scheduler integration. The application must remain a one-shot command, not a resident daemon.
+- Use the native persistent scheduler on each supported OS: Windows Task Scheduler, macOS
+  `launchd`, and Linux `systemd --user`. The application must remain a one-shot command, not a
+  resident daemon.
 
 ## Safety Boundaries
 
@@ -29,7 +31,9 @@
 - Validate configuration and the selected managed résumé before opening the browser.
 - Report upload success only after post-upload UI evidence is observed. Selecting a file is not proof of success.
 - Preserve stable outcomes and exit codes in `result.py`; notifications remain best-effort and must not change a successful upload into a failure.
-- Keep Windows tasks least-privileged, tied to the current interactive user, overlap-safe, wake-capable when configured, and time-bounded. Never run them as `SYSTEM`.
+- Keep scheduler jobs least-privileged, tied to the current user, overlap-safe, persistent across
+  terminal closure and reboot, and time-bounded where the scheduler supports it. Never use a
+  privileged system identity.
 
 ## Cross-Platform Behavior
 
@@ -37,7 +41,8 @@
 - Use installed Google Chrome by default. Support installed Edge and Playwright-managed Chromium only when explicitly configured.
 - Do not require a Playwright browser download for the default Chrome path.
 - Fail safely when a secure OS-keyring backend is unavailable; never fall back to plaintext credential storage.
-- Guard Windows-only scheduler code so all other commands remain usable on macOS and Linux.
+- Keep platform scheduler implementations isolated so unsupported native commands cannot break
+  profile, login, doctor, or manual-run workflows.
 
 ## Verification
 

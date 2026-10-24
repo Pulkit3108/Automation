@@ -8,7 +8,7 @@ from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess
 from unittest.mock import patch
 
-from naukri_automation.config import ScheduleConfig
+from naukri_automation.config import ScheduleConfig, ScheduleRule
 from naukri_automation.scheduling.windows import (
     TASK_NAMESPACE,
     SchedulerError,
@@ -22,20 +22,30 @@ NS = {"task": TASK_NAMESPACE}
 class WindowsScheduleTests(unittest.TestCase):
     def test_daily_task_uses_current_user_and_safety_settings(self) -> None:
         xml = build_task_xml(
-            ScheduleConfig(frequency="daily", time="09:30", wake_computer=True),
+            ScheduleConfig(
+                rules=(ScheduleRule(times=("09:30", "17:45")),),
+                wake_computer=True,
+            ),
             python_executable=Path("/opt/python/bin/python"),
             user_id=r"workstation\person",
             config_path=Path("/tmp/config.toml"),
             now=datetime.fromisoformat("2026-09-20T08:00:00+05:30"),
         )
         root = ET.fromstring(xml)
-        trigger = root.find(".//task:CalendarTrigger", namespaces=NS)
+        triggers = root.findall(".//task:CalendarTrigger", namespaces=NS)
 
-        self.assertIsNotNone(trigger)
-        assert trigger is not None
+        self.assertEqual(2, len(triggers))
+        for trigger in triggers:
+            self.assertEqual(
+                ["Enabled", "StartBoundary", "ScheduleByDay"],
+                [child.tag.rsplit("}", 1)[-1] for child in trigger],
+            )
+        boundaries = [
+            trigger.findtext("task:StartBoundary", namespaces=NS) for trigger in triggers
+        ]
         self.assertEqual(
-            ["Enabled", "StartBoundary", "ScheduleByDay"],
-            [child.tag.rsplit("}", 1)[-1] for child in trigger],
+            ["2026-09-20T09:30:00+05:30", "2026-09-20T17:45:00+05:30"],
+            boundaries,
         )
         self.assertEqual(
             r"workstation\person",
@@ -63,9 +73,7 @@ class WindowsScheduleTests(unittest.TestCase):
     def test_weekly_task_contains_selected_days(self) -> None:
         xml = build_task_xml(
             ScheduleConfig(
-                frequency="weekly",
-                time="07:00",
-                days=("MON", "FRI"),
+                rules=(ScheduleRule(times=("07:00",), days=("MON", "FRI")),),
             ),
             python_executable=Path("/opt/python/bin/python"),
             user_id=r"workstation\person",
@@ -80,7 +88,7 @@ class WindowsScheduleTests(unittest.TestCase):
 
     def test_profile_task_invokes_selected_profile(self) -> None:
         xml = build_task_xml(
-            ScheduleConfig(frequency="daily", time="09:30"),
+            ScheduleConfig(rules=(ScheduleRule(times=("09:30",)),)),
             python_executable=Path("/opt/python/bin/python"),
             user_id=r"workstation\person",
             profile_name="personal",

@@ -9,6 +9,7 @@ from naukri_automation.config import (
     ConfigurationError,
     NotificationConfig,
     ScheduleConfig,
+    ScheduleRule,
     load_config,
     write_config,
 )
@@ -33,9 +34,10 @@ class ConfigTests(unittest.TestCase):
                     topic="resume_status",
                 ),
                 schedule=ScheduleConfig(
-                    frequency="weekly",
-                    time="08:15",
-                    days=("MON", "FRI"),
+                    rules=(
+                        ScheduleRule(times=("08:15",), days=("MON", "FRI")),
+                        ScheduleRule(times=("17:45",), days=("SUN",)),
+                    ),
                 ),
             )
 
@@ -62,13 +64,27 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigurationError, "must use https"):
             config.validate(require_resume=False)
 
-    def test_weekly_schedule_requires_days(self) -> None:
+    def test_schedule_requires_a_rule(self) -> None:
         config = AppConfig(
             resume_path=Path("/tmp/resume.pdf"),
-            schedule=ScheduleConfig(frequency="weekly", time="09:00"),
+            schedule=ScheduleConfig(rules=()),
         )
 
-        with self.assertRaisesRegex(ConfigurationError, "requires at least one day"):
+        with self.assertRaisesRegex(ConfigurationError, "at least one rule"):
+            config.validate(require_resume=False)
+
+    def test_overlapping_schedule_rules_are_rejected(self) -> None:
+        config = AppConfig(
+            resume_path=Path("/tmp/resume.pdf"),
+            schedule=ScheduleConfig(
+                rules=(
+                    ScheduleRule(times=("09:00",), days=()),
+                    ScheduleRule(times=("09:00",), days=("MON",)),
+                )
+            ),
+        )
+
+        with self.assertRaisesRegex(ConfigurationError, "duplicate schedule occurrence"):
             config.validate(require_resume=False)
 
     def test_unknown_browser_channel_is_rejected(self) -> None:

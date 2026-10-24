@@ -13,6 +13,7 @@ ALLOWED_RESUME_SUFFIXES = {".pdf", ".doc", ".docx"}
 DAY_NAMES = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 TOPIC_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 SUPPORTED_BROWSER_CHANNELS = {"chrome", "chromium", "msedge"}
+MAX_SCHEDULE_TRIGGERS = 48
 
 
 class ConfigurationError(ValueError):
@@ -27,10 +28,14 @@ class NotificationConfig:
 
 
 @dataclass(frozen=True)
-class ScheduleConfig:
-    frequency: str = "daily"
-    time: str = "09:00"
+class ScheduleRule:
+    times: tuple[str, ...] = ("09:00",)
     days: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class ScheduleConfig:
+    rules: tuple[ScheduleRule, ...] = (ScheduleRule(),)
     wake_computer: bool = True
 
 
@@ -77,15 +82,37 @@ class AppConfig:
         if not 1 <= self.max_resume_mb <= 20:
             errors.append("max_resume_mb must be between 1 and 20")
 
-        if self.schedule.frequency not in {"daily", "weekly"}:
-            errors.append("schedule.frequency must be daily or weekly")
-        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", self.schedule.time):
-            errors.append("schedule.time must use 24-hour HH:MM format")
-        invalid_days = sorted(set(self.schedule.days) - set(DAY_NAMES))
-        if invalid_days:
-            errors.append(f"invalid schedule days: {', '.join(invalid_days)}")
-        if self.schedule.frequency == "weekly" and not self.schedule.days:
-            errors.append("weekly schedule requires at least one day")
+        if not self.schedule.rules:
+            errors.append("schedule requires at least one rule")
+        trigger_count = 0
+        occurrences: set[tuple[str, str]] = set()
+        for rule in self.schedule.rules:
+            if not rule.times:
+                errors.append("each schedule rule requires at least one time")
+            invalid_times = [
+                value
+                for value in rule.times
+                if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value)
+            ]
+            if invalid_times:
+                errors.append("schedule times must use 24-hour HH:MM format")
+            if len(set(rule.times)) != len(rule.times):
+                errors.append("schedule rule times must not contain duplicates")
+            invalid_days = sorted(set(rule.days) - set(DAY_NAMES))
+            if invalid_days:
+                errors.append(f"invalid schedule days: {', '.join(invalid_days)}")
+            active_days = rule.days or DAY_NAMES
+            for value in rule.times:
+                trigger_count += 1
+                for day in active_days:
+                    occurrence = (day, value)
+                    if occurrence in occurrences:
+                        errors.append(f"duplicate schedule occurrence: {day} at {value}")
+                    occurrences.add(occurrence)
+        if trigger_count > MAX_SCHEDULE_TRIGGERS:
+            errors.append(
+                f"schedule supports at most {MAX_SCHEDULE_TRIGGERS} native triggers"
+            )
 
         if self.notification.enabled:
             if not self.notification.base_url.startswith("https://"):
@@ -114,6 +141,7 @@ def load_config(path: Path | None = None, *, require_resume: bool = True) -> App
 
     notification = _table(raw, "notification")
     schedule = _table(raw, "schedule")
+    schedule_rules = _table_list(schedule, "rules")
     config = AppConfig(
         resume_path=Path(_string(raw, "resume_path")).expanduser(),
         profile_name=_string(raw, "profile_name", "default"),
@@ -129,9 +157,13 @@ def load_config(path: Path | None = None, *, require_resume: bool = True) -> App
             topic=_string(notification, "topic", ""),
         ),
         schedule=ScheduleConfig(
-            frequency=_string(schedule, "frequency", "daily").lower(),
-            time=_string(schedule, "time", "09:00"),
-            days=tuple(day.upper() for day in _string_list(schedule, "days", [])),
+            rules=tuple(
+                ScheduleRule(
+                    times=tuple(_string_list(rule, "times", [])),
+                    days=tuple(day.upper() for day in _string_list(rule, "days", [])),
+                )
+                for rule in schedule_rules
+            ),
             wake_computer=_boolean(schedule, "wake_computer", True),
         ),
     )
@@ -148,31 +180,37 @@ def write_config(config: AppConfig, path: Path | None = None) -> Path:
 
 
 def render_config(config: AppConfig) -> str:
-    days = ", ".join(_toml_string(day) for day in config.schedule.days)
-    return "\n".join(
-        [
-            f"profile_name = {_toml_string(config.profile_name)}",
-            f"username = {_toml_string(config.username)}",
-            f"resume_path = {_toml_string(str(config.resume_path.expanduser()))}",
-            f"browser_channel = {_toml_string(config.browser_channel)}",
-            f"headless = {str(config.headless).lower()}",
-            f"timeout_seconds = {config.timeout_seconds}",
-            f"artifact_retention_days = {config.artifact_retention_days}",
-            f"max_resume_mb = {config.max_resume_mb}",
-            "",
-            "[notification]",
-            f"enabled = {str(config.notification.enabled).lower()}",
-            f"base_url = {_toml_string(config.notification.base_url)}",
-            f"topic = {_toml_string(config.notification.topic)}",
-            "",
-            "[schedule]",
-            f"frequency = {_toml_string(config.schedule.frequency)}",
-            f"time = {_toml_string(config.schedule.time)}",
-            f"days = [{days}]",
-            f"wake_computer = {str(config.schedule.wake_computer).lower()}",
-            "",
-        ]
-    )
+    lines = [
+        f"profile_name = {_toml_string(config.profile_name)}",
+        f"username = {_toml_string(config.username)}",
+        f"resume_path = {_toml_string(str(config.resume_path.expanduser()))}",
+        f"browser_channel = {_toml_string(config.browser_channel)}",
+        f"headless = {str(config.headless).lower()}",
+        f"timeout_seconds = {config.timeout_seconds}",
+        f"artifact_retention_days = {config.artifact_retention_days}",
+        f"max_resume_mb = {config.max_resume_mb}",
+        "",
+        "[notification]",
+        f"enabled = {str(config.notification.enabled).lower()}",
+        f"base_url = {_toml_string(config.notification.base_url)}",
+        f"topic = {_toml_string(config.notification.topic)}",
+        "",
+        "[schedule]",
+        f"wake_computer = {str(config.schedule.wake_computer).lower()}",
+    ]
+    for rule in config.schedule.rules:
+        days = ", ".join(_toml_string(day) for day in rule.days)
+        times = ", ".join(_toml_string(value) for value in rule.times)
+        lines.extend(
+            [
+                "",
+                "[[schedule.rules]]",
+                f"days = [{days}]",
+                f"times = [{times}]",
+            ]
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _toml_string(value: str) -> str:
@@ -211,4 +249,11 @@ def _string_list(raw: dict[str, Any], key: str, default: list[str]) -> list[str]
     value = raw.get(key, default)
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         raise ConfigurationError(f"{key} must be a list of strings")
+    return value
+
+
+def _table_list(raw: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    value = raw.get(key)
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ConfigurationError(f"{key} must be a list of TOML tables")
     return value

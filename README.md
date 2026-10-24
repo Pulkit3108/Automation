@@ -1,8 +1,9 @@
 # Naukri Resume Automation
 
-A Windows-first, cross-platform Python application for updating a configured resume on Naukri at a chosen time.
+A cross-platform Python application for updating a configured resume on Naukri at chosen times.
 
-The application performs one run and exits. Windows Task Scheduler owns the schedule, so no Python process needs to remain running all day. Manual runs are supported on Windows, macOS, and Linux.
+The application performs one run and exits. Windows Task Scheduler, macOS `launchd`, or Linux
+`systemd --user` owns the schedule, so no Python process remains running all day.
 
 > [!IMPORTANT]
 > A real upload changes the remote Naukri profile. On every new machine and account, run `doctor`, interactive login, and a headed dry run before the first upload.
@@ -16,7 +17,7 @@ The application performs one run and exits. Windows Task Scheduler owns the sche
 - side-effect-free readiness checks and headed dry runs;
 - one-shot uploads with post-upload verification, structured results, and failure diagnostics;
 - optional ntfy-compatible notifications;
-- Windows Task Scheduler integration for daily or weekly execution.
+- native persistent scheduling on Windows, macOS, and Linux with independent day-and-time rules.
 
 See [DESIGN.md](DESIGN.md) for architecture and safety boundaries.
 
@@ -24,7 +25,7 @@ See [DESIGN.md](DESIGN.md) for architecture and safety boundaries.
 
 - Python 3.12 or newer;
 - Google Chrome by default, or Microsoft Edge / Playwright-managed Chromium when configured;
-- Windows 11 for automatic scheduling; manual commands work on Windows, macOS, and Linux;
+- Windows 11, macOS, or a systemd-based Linux distribution for automatic scheduling;
 - internet access when installing dependencies and running Naukri automation.
 
 Linux credential storage requires a working Secret Service-compatible keyring. If no secure backend is available, profile creation fails instead of storing a password insecurely.
@@ -98,7 +99,9 @@ Default locations:
 
 The first profile becomes the default. With multiple profiles, use `--profile <name>` or select a default with `naukri-auto profile default <name>`. The complete management command list is in [Command Reference](#command-reference).
 
-Every profile has separate configuration, managed résumés, browser cookies, logs, artifacts, lock, result, keyring entry, and Windows task name. Two local profiles using the same Naukri username still modify the same remote Naukri account, so do not schedule them at overlapping times.
+Every profile has separate configuration, managed résumés, browser cookies, logs, artifacts, lock,
+result, keyring entry, and native scheduler job. Two local profiles using the same Naukri username
+still modify the same remote Naukri account, so do not schedule them at overlapping times.
 
 ### 2. Check Local Readiness
 
@@ -136,9 +139,28 @@ naukri-auto run --profile personal --headed
 
 The command returns success only when the resulting profile UI provides update evidence. An attempted upload with an unknown result is not retried automatically.
 
-## Windows Schedule
+## Schedule
 
-Review the configured local time and install the task:
+Use `schedule set` to replace the profile's rules. Omitting `--days` means every day:
+
+```text
+naukri-auto schedule set --profile personal --times 09:00,18:00
+```
+
+Use `schedule add` for independent selected-day rules:
+
+```text
+naukri-auto schedule add --profile personal --days MON,WED,FRI --times 13:30
+naukri-auto schedule add --profile personal --days SUN --times 10:15
+naukri-auto schedule list --profile personal
+```
+
+Times use local 24-hour `HH:MM` format. Rules may target every day or any combination of
+`MON,TUE,WED,THU,FRI,SAT,SUN`. Overlapping rules are rejected, and a profile supports up to 48
+native triggers, matching the Windows platform limit. This provides cron-like flexibility without
+raw cron expressions or a resident Python process.
+
+Install the configured rules once:
 
 ```text
 naukri-auto schedule install --profile personal
@@ -152,11 +174,19 @@ naukri-auto schedule run-now --profile personal
 naukri-auto schedule remove --profile personal
 ```
 
-The task uses the current non-administrator user's interactive session, ignores overlapping runs, starts after a missed trigger when possible, can request wake-from-sleep, and stops after 30 minutes. It never runs as `SYSTEM`.
+The installed job persists after terminal closure and reboot. The user must sign in after a reboot
+so the operating-system keyring and dedicated browser profile are available. Screen lock, display
+sleep, or inactivity do not disable a scheduled headless run. A powered-off computer cannot run;
+native schedulers may consolidate or catch up missed runs after wake or login.
 
-After changing a profile's schedule, run `schedule install` again to replace that profile's Windows task definition.
+After changing rules, run `schedule install` again to replace that profile's native scheduler
+definition.
 
-Because the dedicated browser profile belongs to the current user, remain signed in to Windows. Locking or sleeping the computer is acceptable when wake timers are enabled; signing out or powering off prevents the task from running.
+| Platform | Persistent scheduler | Installed definition |
+| --- | --- | --- |
+| Windows | Task Scheduler, current interactive user | `NaukriResumeAutomation-<profile>` |
+| macOS | Per-user `launchd` agent | `~/Library/LaunchAgents/com.naukri-resume-automation.<profile>.plist` |
+| Linux | Per-user systemd service and timer | `~/.config/systemd/user/naukri-resume-automation-<profile>.*` |
 
 ## Command Reference
 
@@ -170,8 +200,9 @@ All profile-bound commands accept `--profile <name>`. The option may be omitted 
 | Select the default | `naukri-auto profile default <name>` |
 | Change username | `naukri-auto profile edit <name> --username <login>` |
 | Change browser | `naukri-auto profile edit <name> --browser-channel chrome|msedge|chromium` |
-| Change daily schedule | `naukri-auto profile edit <name> --schedule-frequency daily --schedule-time HH:MM` |
-| Change weekly schedule | `naukri-auto profile edit <name> --schedule-frequency weekly --schedule-time HH:MM --schedule-days MON,FRI` |
+| Replace schedule rules | `naukri-auto schedule set --profile <name> --times HH:MM,HH:MM [--days MON,FRI]` |
+| Add a schedule rule | `naukri-auto schedule add --profile <name> --times HH:MM,HH:MM [--days MON,FRI]` |
+| List schedule rules | `naukri-auto schedule list --profile <name>` |
 | Check whether a password is stored | `naukri-auto credentials status --profile <name>` |
 | Replace the stored password | `naukri-auto credentials update --profile <name>` |
 | Remove the stored password | `naukri-auto credentials remove --profile <name>` |
@@ -183,10 +214,10 @@ All profile-bound commands accept `--profile <name>`. The option may be omitted 
 | Establish or verify login | `naukri-auto login --profile <name>` |
 | Safe browser test | `naukri-auto run --profile <name> --dry-run --headed` |
 | Perform one upload | `naukri-auto run --profile <name> [--headed]` |
-| Install the Windows task | `naukri-auto schedule install --profile <name>` |
-| Inspect the Windows task | `naukri-auto schedule show --profile <name>` |
-| Trigger the Windows task now | `naukri-auto schedule run-now --profile <name>` |
-| Remove the Windows task | `naukri-auto schedule remove --profile <name>` |
+| Install the native scheduler job | `naukri-auto schedule install --profile <name>` |
+| Inspect the scheduler job | `naukri-auto schedule show --profile <name>` |
+| Trigger the scheduler job now | `naukri-auto schedule run-now --profile <name>` |
+| Remove the scheduler job | `naukri-auto schedule remove --profile <name>` |
 
 Use `naukri-auto <command> --help` and `naukri-auto <command> <subcommand> --help` for exact options.
 
@@ -244,7 +275,8 @@ Existing profiles, managed résumés, keyring entries, and browser sessions are 
 - Browser launch failure: install the configured Chrome/Edge channel, or select `chromium` and run `python -m playwright install chromium`.
 - PowerShell blocks `Activate.ps1`: apply the current-user `RemoteSigned` command from
   [Windows Installation](#windows-installation), unless an organization-managed policy overrides it.
-- Windows task does not run: remain signed in, confirm wake timers, run `schedule show`, then use `schedule run-now` for a controlled check.
+- Scheduled job does not run: remain signed in, run `schedule show`, inspect the profile log, then
+  use `schedule run-now` for a controlled check.
 
 ## Development Checks
 

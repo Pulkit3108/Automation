@@ -6,22 +6,26 @@ import logging
 import logging.handlers
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from naukri_automation import __version__
 from naukri_automation.browser_session import BrowserDependencyError, BrowserSession
-from naukri_automation.config import AppConfig, ConfigurationError, load_config
+from naukri_automation.config import (
+    AppConfig,
+    ConfigurationError,
+    ScheduleConfig,
+    ScheduleRule,
+    load_config,
+    write_config,
+)
 from naukri_automation.credentials import CredentialStore
 from naukri_automation.naukri_site import LOGIN_URL, AuthState, NaukriSite
 from naukri_automation.paths import AppPaths, ProfilePaths, get_app_paths
 from naukri_automation.profile_cli import add_management_parsers, handle_management_command
 from naukri_automation.profile_store import resolve_profile_name
 from naukri_automation.run_lock import AlreadyRunningError, RunLock
-from naukri_automation.scheduling.windows import (
-    SchedulerError,
-    WindowsScheduler,
-    build_task_xml,
-)
+from naukri_automation.scheduling import SchedulerError, scheduler_for_profile
 from naukri_automation.workflow import execute
 
 LOGGER = logging.getLogger(__name__)
@@ -49,12 +53,17 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--dry-run", action="store_true", help="stop before selecting a file")
     run.add_argument("--headed", action="store_true", help="show the browser window")
 
-    schedule = commands.add_parser("schedule", help="manage the Windows scheduled task")
+    schedule = commands.add_parser("schedule", help="configure and manage the native scheduler")
     schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
+    for name in ("set", "add"):
+        command = schedule_commands.add_parser(name)
+        command.add_argument("--profile")
+        command.add_argument("--times", required=True, help="comma-separated HH:MM times")
+        command.add_argument("--days", help="comma-separated MON,TUE,...; omit for every day")
     install = schedule_commands.add_parser("install")
     install.add_argument("--profile")
     install.add_argument("--yes", action="store_true", help="skip confirmation")
-    for name in ("show", "run-now", "remove"):
+    for name in ("list", "show", "run-now", "remove"):
         schedule_command = schedule_commands.add_parser(name)
         schedule_command.add_argument("--profile")
     return parser
@@ -139,14 +148,23 @@ def _doctor(
         browser_channel = config.browser_channel if config is not None else "chrome"
         browser_ready, browser_detail = _playwright_browser_check(browser_channel)
         checks.append((f"Browser ({browser_channel})", browser_ready, browser_detail))
-    scheduler_present = sys.platform != "win32" or shutil.which("schtasks.exe") is not None
+    scheduler_command = (
+        "schtasks.exe"
+        if sys.platform == "win32"
+        else "launchctl"
+        if sys.platform == "darwin"
+        else "systemctl"
+        if sys.platform.startswith("linux")
+        else ""
+    )
+    scheduler_present = bool(scheduler_command and shutil.which(scheduler_command))
     checks.append(
         (
             "Scheduler",
             scheduler_present,
-            "Windows Task Scheduler available"
-            if sys.platform == "win32" and scheduler_present
-            else "manual runs supported; schedule installation is Windows-only",
+            f"native scheduler available ({scheduler_command})"
+            if scheduler_present
+            else "native scheduler command is unavailable",
         )
     )
     checks.append(("Data directory", True, str(paths.data_dir)))
@@ -251,36 +269,58 @@ def _schedule(
     paths: ProfilePaths,
     profile_name: str,
 ) -> int:
-    task_name = f"NaukriResumeAutomation-{profile_name}"
-    scheduler = WindowsScheduler(task_name=task_name)
-    if args.schedule_command == "show":
-        print(scheduler.show())
-        return 0
-    if args.schedule_command == "run-now":
-        print(scheduler.run_now())
-        return 0
-    if args.schedule_command == "remove":
-        print(scheduler.remove())
+    if args.schedule_command in {"show", "run-now", "remove"}:
+        scheduler = scheduler_for_profile(profile_name)
+        if args.schedule_command == "show":
+            print(scheduler.show())
+        elif args.schedule_command == "run-now":
+            print(scheduler.run_now())
+        else:
+            print(scheduler.remove())
         return 0
 
     config = load_config(config_path)
-    user_id = scheduler.current_user_id()
-    task_xml = build_task_xml(
-        config.schedule,
-        python_executable=Path(sys.executable),
-        user_id=user_id,
-        config_path=None,
-        profile_name=profile_name,
-        working_directory=paths.config_dir,
-    )
-    print(
-        f"Install Windows task at {config.schedule.time} ({config.schedule.frequency}, local time)"
-    )
+    if args.schedule_command in {"set", "add"}:
+        rule = _schedule_rule(args.times, args.days)
+        rules = (rule,) if args.schedule_command == "set" else (*config.schedule.rules, rule)
+        updated = replace(config, schedule=replace(config.schedule, rules=rules))
+        write_config(updated, config_path)
+        print(_schedule_summary(updated.schedule))
+        return 0
+    if args.schedule_command == "list":
+        print(_schedule_summary(config.schedule))
+        return 0
+
+    scheduler = scheduler_for_profile(profile_name)
+    print(f"Install schedule: {_schedule_summary(config.schedule)}")
     if not args.yes and not _prompt_yes_no("Continue", False):
         print("Schedule installation cancelled.")
         return 1
-    print(scheduler.install(task_xml, paths.data_dir / "task.xml"))
+    print(
+        scheduler.install_schedule(
+            config.schedule,
+            python_executable=Path(sys.executable),
+            working_directory=paths.config_dir,
+            data_directory=paths.data_dir,
+            profile_name=profile_name,
+        )
+    )
     return 0
+
+
+def _schedule_rule(times_value: str, days_value: str | None) -> ScheduleRule:
+    times = tuple(value.strip() for value in times_value.split(",") if value.strip())
+    days = tuple(
+        value.strip().upper() for value in (days_value or "").split(",") if value.strip()
+    )
+    return ScheduleRule(times=times, days=days)
+
+
+def _schedule_summary(schedule: ScheduleConfig) -> str:
+    return "; ".join(
+        f"{','.join(rule.days) if rule.days else 'every day'} at {','.join(rule.times)}"
+        for rule in schedule.rules
+    )
 
 
 def _configure_logging(paths: AppPaths | ProfilePaths, *, verbose: bool) -> None:

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import sys
-from dataclasses import replace
+import subprocess
 from pathlib import Path
 
 from naukri_automation.config import AppConfig, ConfigurationError
@@ -22,7 +21,7 @@ from naukri_automation.profile_store import (
     set_default_profile,
     update_profile,
 )
-from naukri_automation.scheduling.windows import WindowsScheduler
+from naukri_automation.scheduling import SchedulerError, scheduler_for_profile
 
 
 def add_management_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -39,9 +38,6 @@ def add_management_parsers(commands: argparse._SubParsersAction[argparse.Argumen
     edit.add_argument("name")
     edit.add_argument("--username")
     edit.add_argument("--browser-channel", choices=("chrome", "chromium", "msedge"))
-    edit.add_argument("--schedule-frequency", choices=("daily", "weekly"))
-    edit.add_argument("--schedule-time")
-    edit.add_argument("--schedule-days", help="comma-separated MON,TUE,...")
     headless = edit.add_mutually_exclusive_group()
     headless.add_argument("--headless", action="store_true", dest="headless")
     headless.add_argument("--headed", action="store_false", dest="headless")
@@ -141,23 +137,6 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
     if args.headless is not None:
         changes["headless"] = args.headless
 
-    if any(
-        value is not None
-        for value in (args.schedule_frequency, args.schedule_time, args.schedule_days)
-    ):
-        days = config.schedule.days
-        if args.schedule_days is not None:
-            days = tuple(
-                day.strip().upper()
-                for day in args.schedule_days.split(",")
-                if day.strip()
-            )
-        changes["schedule"] = replace(
-            config.schedule,
-            frequency=args.schedule_frequency or config.schedule.frequency,
-            time=args.schedule_time or config.schedule.time,
-            days=days,
-        )
     if not changes:
         raise ConfigurationError("no profile changes were supplied")
     updated = update_profile(config, profile_paths, **changes)
@@ -181,7 +160,11 @@ def _show_profile(config: AppConfig, paths: ProfilePaths) -> int:
     print(f"Active résumé:       {config.resume_path.name}")
     print(f"Résumé path:         {config.resume_path}")
     print(f"Browser channel:     {config.browser_channel}")
-    print(f"Schedule configured: {config.schedule.frequency} at {config.schedule.time}")
+    rules = "; ".join(
+        f"{','.join(rule.days) if rule.days else 'every day'} at {','.join(rule.times)}"
+        for rule in config.schedule.rules
+    )
+    print(f"Schedule configured: {rules}")
     print(f"Scheduled task:      {scheduled}")
     print(f"Last result:         {outcome}{f' at {timestamp}' if timestamp else ''}")
     return 0
@@ -238,10 +221,11 @@ def _resume_command(args: argparse.Namespace, paths: AppPaths, profile_name: str
 
 
 def _schedule_state(profile_name: str) -> str:
-    if sys.platform != "win32":
-        return "not checked (Windows only)"
-    scheduler = WindowsScheduler(task_name=f"NaukriResumeAutomation-{profile_name}")
-    return "installed" if scheduler.is_installed() else "not installed"
+    try:
+        scheduler = scheduler_for_profile(profile_name)
+        return "installed" if scheduler.is_installed() else "not installed"
+    except (OSError, SchedulerError, subprocess.SubprocessError):
+        return "unavailable"
 
 
 def _read_default_profile(paths: AppPaths) -> str | None:

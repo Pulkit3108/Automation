@@ -15,7 +15,12 @@ base_url = "https://ntfy.sh"
 topic = ""
 
 [schedule]
-frequency = "daily"
-time = "09:00"
-days = []
 wake_computer = true
+
+[[schedule.rules]]
+days = []
+times = ["09:00", "17:00"]
+
+[[schedule.rules]]
+days = ["MON", "WED", "FRI"]
+times = ["13:30"]

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from naukri_automation.config import ScheduleConfig
+from naukri_automation.config import ScheduleConfig, ScheduleRule
 
 TASK_NAME = "NaukriResumeAutomation"
 TASK_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
@@ -40,7 +40,6 @@ def build_task_xml(
     if not user_id.strip():
         raise SchedulerError("Windows task user identifier is required")
     now = now or datetime.now().astimezone()
-    boundary = _next_boundary(schedule, now)
     ET.register_namespace("", TASK_NAMESPACE)
 
     task = ET.Element(_tag("Task"), {"version": "1.4"})
@@ -50,18 +49,23 @@ def build_task_xml(
     )
 
     triggers = ET.SubElement(task, _tag("Triggers"))
-    trigger = ET.SubElement(triggers, _tag("CalendarTrigger"))
-    ET.SubElement(trigger, _tag("Enabled")).text = "true"
-    ET.SubElement(trigger, _tag("StartBoundary")).text = boundary.isoformat(timespec="seconds")
-    if schedule.frequency == "daily":
-        daily = ET.SubElement(trigger, _tag("ScheduleByDay"))
-        ET.SubElement(daily, _tag("DaysInterval")).text = "1"
-    else:
-        weekly = ET.SubElement(trigger, _tag("ScheduleByWeek"))
-        days = ET.SubElement(weekly, _tag("DaysOfWeek"))
-        for day in schedule.days:
-            ET.SubElement(days, _tag(DAY_TAGS[day]))
-        ET.SubElement(weekly, _tag("WeeksInterval")).text = "1"
+    for rule in schedule.rules:
+        for run_time in rule.times:
+            boundary = _next_boundary(rule, run_time, now)
+            trigger = ET.SubElement(triggers, _tag("CalendarTrigger"))
+            ET.SubElement(trigger, _tag("Enabled")).text = "true"
+            ET.SubElement(trigger, _tag("StartBoundary")).text = boundary.isoformat(
+                timespec="seconds"
+            )
+            if not rule.days:
+                daily = ET.SubElement(trigger, _tag("ScheduleByDay"))
+                ET.SubElement(daily, _tag("DaysInterval")).text = "1"
+            else:
+                weekly = ET.SubElement(trigger, _tag("ScheduleByWeek"))
+                days = ET.SubElement(weekly, _tag("DaysOfWeek"))
+                for day in rule.days:
+                    ET.SubElement(days, _tag(DAY_TAGS[day]))
+                ET.SubElement(weekly, _tag("WeeksInterval")).text = "1"
 
     principals = ET.SubElement(task, _tag("Principals"))
     principal = ET.SubElement(principals, _tag("Principal"), {"id": "CurrentUser"})
@@ -106,6 +110,24 @@ class WindowsScheduler:
             return self._run("/Create", "/TN", self.task_name, "/XML", str(temporary_path), "/F")
         finally:
             temporary_path.unlink(missing_ok=True)
+
+    def install_schedule(
+        self,
+        schedule: ScheduleConfig,
+        *,
+        python_executable: Path,
+        working_directory: Path,
+        data_directory: Path,
+        profile_name: str,
+    ) -> str:
+        task_xml = build_task_xml(
+            schedule,
+            python_executable=python_executable,
+            user_id=self.current_user_id(),
+            profile_name=profile_name,
+            working_directory=working_directory,
+        )
+        return self.install(task_xml, data_directory / "task.xml")
 
     def show(self) -> str:
         return self._run("/Query", "/TN", self.task_name, "/V", "/FO", "LIST")
@@ -170,13 +192,13 @@ def _command_error_detail(error: BaseException) -> str:
     return str(error)
 
 
-def _next_boundary(schedule: ScheduleConfig, now: datetime) -> datetime:
-    hour, minute = (int(part) for part in schedule.time.split(":"))
-    if schedule.frequency == "daily":
+def _next_boundary(rule: ScheduleRule, run_time: str, now: datetime) -> datetime:
+    hour, minute = (int(part) for part in run_time.split(":"))
+    if not rule.days:
         candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         return candidate if candidate > now else candidate + timedelta(days=1)
 
-    requested = {list(DAY_TAGS).index(day) for day in schedule.days}
+    requested = {list(DAY_TAGS).index(day) for day in rule.days}
     for offset in range(8):
         candidate = (now + timedelta(days=offset)).replace(
             hour=hour, minute=minute, second=0, microsecond=0
