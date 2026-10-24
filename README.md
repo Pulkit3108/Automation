@@ -163,7 +163,9 @@ After the dry run succeeds:
 naukri-auto run --profile personal --headed
 ```
 
-The command returns success only when the resulting profile UI provides update evidence. An attempted upload with an unknown result is not retried automatically.
+The command returns as soon as any valid post-upload success message, newly appearing filename, or
+changed update evidence is observed. An attempted upload with an unknown result is not retried
+automatically.
 
 ## Schedule
 

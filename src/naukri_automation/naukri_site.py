@@ -185,39 +185,37 @@ class NaukriSite:
             re.compile(r"resume (uploaded|updated) successfully", re.IGNORECASE)
         ).first
         try:
-            confirmation.wait_for(state="visible", timeout=self.timeout_ms)
-            text = confirmation.inner_text().strip()
-            if text:
-                return text
-        except Exception:
-            pass
-
-        if not filename_before:
-            try:
-                filename_evidence.wait_for(state="visible", timeout=self.timeout_ms)
-                text = filename_evidence.inner_text().strip()
-                if text:
-                    return text
-            except Exception:
-                pass
-
-        try:
-            if update_before:
-                from playwright.sync_api import expect
-
-                expect(update_evidence).not_to_have_text(
-                    update_before,
-                    timeout=self.timeout_ms,
-                )
-            else:
-                update_evidence.wait_for(state="visible", timeout=self.timeout_ms)
-            update_after = self._visible_text(update_evidence)
-            if update_after and update_after != update_before:
-                return update_after
+            self.page.wait_for_function(
+                """([filename, filenameBefore, updateSelector, updateBefore]) => {
+                    const bodyText = document.body?.innerText || '';
+                    if (/resume (uploaded|updated) successfully/i.test(bodyText)) return true;
+                    if (!filenameBefore && bodyText.includes(filename)) return true;
+                    return [...document.querySelectorAll(updateSelector)].some((element) => {
+                        const style = getComputedStyle(element);
+                        const rect = element.getBoundingClientRect();
+                        const text = (element.innerText || '').trim();
+                        return style.visibility !== 'hidden' && style.display !== 'none' &&
+                            rect.width > 0 && rect.height > 0 && text && text !== updateBefore;
+                    });
+                }""",
+                arg=[filename, filename_before, UPDATE_EVIDENCE_SELECTOR, update_before],
+                timeout=self.timeout_ms,
+            )
         except Exception as error:
             raise UploadVerificationError(
                 "upload was attempted but success could not be verified"
             ) from error
+
+        confirmation_text = self._visible_text(confirmation)
+        if confirmation_text:
+            return confirmation_text
+        if not filename_before:
+            filename_after = self._visible_text(filename_evidence)
+            if filename_after:
+                return filename_after
+        update_after = self._visible_text(update_evidence)
+        if update_after and update_after != update_before:
+            return update_after
 
         raise UploadVerificationError("upload success evidence was empty")
 

@@ -181,13 +181,11 @@ class NaukriSiteTests(unittest.TestCase):
         page.get_by_text.side_effect = lambda value, **kwargs: (
             filename if value == "resume.pdf" else confirmation
         )
+        page.wait_for_function.side_effect = RuntimeError("no post-upload change")
         site = NaukriSite(page, timeout_seconds=10)
-        expectation = MagicMock()
-        expectation.not_to_have_text.side_effect = AssertionError("update text did not change")
 
         with (
             patch.object(site, "inspect_resume_section"),
-            patch("playwright.sync_api.expect", return_value=expectation),
             self.assertRaises(UploadVerificationError),
         ):
             site.upload_resume(Path("resume.pdf"))
@@ -217,6 +215,32 @@ class NaukriSiteTests(unittest.TestCase):
 
         self.assertEqual("Resume uploaded successfully", evidence)
         resume.set_input_files.assert_called_once_with("resume.pdf")
+        page.wait_for_function.assert_called_once()
+
+    def test_changed_update_text_proves_upload_without_sequential_waits(self) -> None:
+        page = MagicMock()
+        resume = _locator()
+        filename = _locator()
+        filename.is_visible.return_value = True
+        filename.inner_text.return_value = "resume.pdf"
+        confirmation = _locator(count=0)
+        update = _locator()
+        update.is_visible.return_value = True
+        update.inner_text.side_effect = ["Updated yesterday", "Updated just now"]
+        page.locator.side_effect = lambda selector: {
+            RESUME_SELECTOR: resume,
+            UPDATE_EVIDENCE_SELECTOR: update,
+        }[selector]
+        page.get_by_text.side_effect = lambda value, **kwargs: (
+            filename if value == "resume.pdf" else confirmation
+        )
+        site = NaukriSite(page, timeout_seconds=10)
+
+        with patch.object(site, "inspect_resume_section"):
+            evidence = site.upload_resume(Path("resume.pdf"))
+
+        self.assertEqual("Updated just now", evidence)
+        page.wait_for_function.assert_called_once()
 
 
 def _locator(*, count: int = 1) -> MagicMock:
