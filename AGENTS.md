@@ -11,9 +11,13 @@
 ## Safety Boundaries
 
 - Treat every non-dry `naukri-auto run` as an external write to the user's Naukri profile. Run it only with explicit authorization for that upload.
-- Run `login` only when the user requests authentication setup or refresh. CAPTCHA, MFA, and final login submission remain manual.
+- Run `login` only when the user requests authentication setup or refresh. A recognized login form
+  may submit stored credentials and must detect rejection; CAPTCHA and MFA remain manual and must
+  never be bypassed.
 - `run --dry-run` must stop before file selection or upload. Preserve an automated regression test for this boundary.
-- Require explicit approval before installing, triggering, replacing, or removing a Windows scheduled task, sending a real notification, deleting a profile or credential, or removing a managed résumé.
+- Require explicit approval before installing, triggering, replacing, or removing a native
+  scheduler job, sending a real notification, deleting a profile or credential, or removing a
+  managed résumé.
 - Never retry an upload automatically when its outcome is unknown. Require manual inspection before another attempt.
 - Do not attempt to bypass CAPTCHA, MFA, anti-bot controls, or account restrictions.
 

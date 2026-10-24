@@ -9,6 +9,14 @@ LOGIN_URL = "https://www.naukri.com/nlogin/login"
 PROFILE_URL = "https://www.naukri.com/mnjuser/profile"
 USERNAME_SELECTOR = 'input#usernameField, input#emailTxt, input[name="username"]'
 PASSWORD_SELECTOR = 'input#passwordField, input#pwd1, input[type="password"]'
+LOGIN_BUTTON_SELECTOR = (
+    'button[type="submit"]:has-text("Login"), button.btn-primary:has-text("Login")'
+)
+LOGIN_ERROR_SELECTOR = '.server-err, .error-message, [role="alert"], [class*="error" i]'
+CHALLENGE_SELECTOR = (
+    'iframe[title*="captcha" i], iframe[src*="captcha" i], '
+    '[class*="captcha" i], input[name*="otp" i]'
+)
 RESUME_SELECTOR = (
     'input#attachCV[type="file"], input[type="file"][name*="resume" i], '
     'input[type="file"][accept*="pdf" i]'
@@ -25,6 +33,8 @@ UPDATE_EVIDENCE_SELECTOR = (
 class AuthState(StrEnum):
     AUTHENTICATED = "AUTHENTICATED"
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    CHALLENGE_REQUIRED = "CHALLENGE_REQUIRED"
     UNKNOWN = "UNKNOWN"
 
 
@@ -60,6 +70,34 @@ class NaukriSite:
         password_input.fill(password)
         return True
 
+    def submit_login(self) -> bool:
+        button = self.page.locator(LOGIN_BUTTON_SELECTOR).first
+        try:
+            button.wait_for(state="visible", timeout=self.timeout_ms)
+            button.click()
+        except Exception:
+            return False
+        return True
+
+    def wait_for_login_result(self) -> AuthState:
+        try:
+            self.page.wait_for_function(
+                """([authenticated, challenge]) => {
+                    const text = (document.body?.innerText || '').toLowerCase();
+                    const rejected =
+                        /(invalid|incorrect|wrong).*(email|e-mail|username|password)/.test(text) ||
+                        /(email|e-mail|username|password).*(invalid|incorrect|wrong)/.test(text);
+                    return location.pathname.includes('/mnjuser/profile') ||
+                        document.querySelector(authenticated) ||
+                        document.querySelector(challenge) || rejected;
+                }""",
+                arg=[AUTHENTICATED_SELECTOR, CHALLENGE_SELECTOR],
+                timeout=self.timeout_ms,
+            )
+        except Exception:
+            return AuthState.UNKNOWN
+        return self.auth_state()
+
     def wait_for_auth_state(self) -> AuthState:
         state_marker = self.page.locator(
             f"{USERNAME_SELECTOR}, {AUTHENTICATED_SELECTOR}"
@@ -74,6 +112,10 @@ class NaukriSite:
         current_url = self.page.url.lower()
         if self._count(AUTHENTICATED_SELECTOR):
             return AuthState.AUTHENTICATED
+        if self._has_invalid_credentials_error():
+            return AuthState.INVALID_CREDENTIALS
+        if self._count(CHALLENGE_SELECTOR):
+            return AuthState.CHALLENGE_REQUIRED
         if "/nlogin/" in current_url or self._count(USERNAME_SELECTOR):
             return AuthState.LOGIN_REQUIRED
         return AuthState.UNKNOWN
@@ -153,6 +195,24 @@ class NaukriSite:
 
     def _count(self, selector: str) -> int:
         return self.page.locator(selector).count()
+
+    def _has_invalid_credentials_error(self) -> bool:
+        error_pattern = re.compile(
+            r"(?:invalid|incorrect|wrong).*(?:email|e-mail|username|password)"
+            r"|(?:email|e-mail|username|password).*(?:invalid|incorrect|wrong)",
+            re.IGNORECASE,
+        )
+        try:
+            messages = self.page.locator(LOGIN_ERROR_SELECTOR).all_inner_texts()
+        except Exception:
+            messages = []
+        if any(error_pattern.search(message.strip()) for message in messages):
+            return True
+        try:
+            body_text = self.page.locator("body").inner_text()
+        except Exception:
+            return False
+        return bool(error_pattern.search(body_text))
 
     @staticmethod
     def _visible_text(locator: Any) -> str:

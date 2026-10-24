@@ -225,12 +225,51 @@ def _login(
             if initial_state == AuthState.LOGIN_REQUIRED:
                 password = CredentialStore().get(profile_name)
                 if password and site.fill_login(config.username, password):
-                    print("Stored username and password were filled; submit after review.")
-                print(
-                    "Complete Naukri login in the browser. "
-                    "CAPTCHA and MFA must be completed manually."
-                )
-                input("Press Enter after the profile is visible...")
+                    if not site.submit_login():
+                        LOGGER.warning("login button was not found for profile %s", profile_name)
+                        print("The login button was not found; the site contract may have changed.")
+                        return 3
+                    result = site.wait_for_login_result()
+                    if result == AuthState.AUTHENTICATED:
+                        LOGGER.info("login succeeded for profile %s", profile_name)
+                        print("Login confirmed; the dedicated browser profile is ready.")
+                        return 0
+                    if result == AuthState.INVALID_CREDENTIALS:
+                        LOGGER.warning(
+                            "Naukri rejected stored login credentials for profile %s",
+                            profile_name,
+                        )
+                        print("Naukri rejected the stored email or password.")
+                        print(
+                            "Update password: naukri-auto credentials update "
+                            f"--profile {profile_name}"
+                        )
+                        print(
+                            "Update email: naukri-auto profile edit "
+                            f"{profile_name} --username <login>"
+                        )
+                        print(f"Log: {paths.logs / 'naukri-auto.log'}")
+                        return 3
+                    if result == AuthState.CHALLENGE_REQUIRED:
+                        LOGGER.info("manual login challenge required for profile %s", profile_name)
+                        print("Complete CAPTCHA or MFA manually in the browser.")
+                        input("Press Enter after the profile is visible...")
+                    else:
+                        LOGGER.warning(
+                            "login outcome was not identified for profile %s", profile_name
+                        )
+                        print(
+                            "Login did not reach a recognized result before the timeout; "
+                            "inspect the browser and local log."
+                        )
+                        print(f"Log: {paths.logs / 'naukri-auto.log'}")
+                        return 3
+                else:
+                    print(
+                        "Stored credentials could not be filled. Complete login manually; "
+                        "CAPTCHA and MFA must remain manual."
+                    )
+                    input("Press Enter after the profile is visible...")
             else:
                 print("Could not identify the Naukri login page; waiting for manual review.")
                 input("Press Enter after the profile is visible...")

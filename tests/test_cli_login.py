@@ -62,6 +62,52 @@ class LoginCommandTests(unittest.TestCase):
 
             self.assertEqual(3, result)
 
+    def test_stored_credentials_are_submitted_and_confirmed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._profile_fixture(Path(directory))
+            session = _FakeBrowserSession(closed=False)
+            site = MagicMock()
+            site.wait_for_auth_state.return_value = AuthState.LOGIN_REQUIRED
+            site.fill_login.return_value = True
+            site.submit_login.return_value = True
+            site.wait_for_login_result.return_value = AuthState.AUTHENTICATED
+
+            with (
+                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("naukri_automation.cli.BrowserSession", return_value=session),
+                patch("naukri_automation.cli.NaukriSite", return_value=site),
+                patch("naukri_automation.cli.CredentialStore.get", return_value="secret"),
+                patch("builtins.input") as prompt,
+            ):
+                result = _login(paths.config_file, paths, "personal")
+
+            self.assertEqual(0, result)
+            site.submit_login.assert_called_once_with()
+            prompt.assert_not_called()
+
+    def test_invalid_credentials_stop_with_no_manual_wait(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = self._profile_fixture(Path(directory))
+            session = _FakeBrowserSession(closed=False)
+            site = MagicMock()
+            site.wait_for_auth_state.return_value = AuthState.LOGIN_REQUIRED
+            site.fill_login.return_value = True
+            site.submit_login.return_value = True
+            site.wait_for_login_result.return_value = AuthState.INVALID_CREDENTIALS
+
+            with (
+                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("naukri_automation.cli.BrowserSession", return_value=session),
+                patch("naukri_automation.cli.NaukriSite", return_value=site),
+                patch("naukri_automation.cli.CredentialStore.get", return_value="wrong"),
+                patch("builtins.input") as prompt,
+            ):
+                result = _login(paths.config_file, paths, "personal")
+
+            self.assertEqual(3, result)
+            prompt.assert_not_called()
+            site.open_profile.assert_not_called()
+
     @staticmethod
     def _profile_fixture(root: Path) -> ProfilePaths:
         paths = ProfilePaths(

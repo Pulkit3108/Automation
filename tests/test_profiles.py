@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from naukri_automation.cli import _schedule, build_parser
 from naukri_automation.config import ConfigurationError
@@ -175,6 +175,45 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(("MON", "FRI"), updated.schedule.rules[0].days)
             self.assertEqual(("10:15",), updated.schedule.rules[1].times)
             self.assertEqual(("SUN",), updated.schedule.rules[1].days)
+
+    def test_profile_remove_cleans_scheduler_credential_and_managed_data(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = AppPaths(root / "config", root / "data")
+            resume = root / "resume.pdf"
+            resume.write_bytes(b"%PDF-test")
+            _, profile_paths = create_profile(
+                paths,
+                name="personal",
+                username="person@example.test",
+                resume_source=resume,
+            )
+            set_default_profile(paths, "personal")
+            backend = FakeKeyring()
+            store = CredentialStore(backend)
+            store.set("personal", "secret")
+            scheduler = MagicMock()
+            scheduler.is_installed.return_value = True
+            args = build_parser().parse_args(
+                ["profile", "remove", "personal", "--yes"]
+            )
+
+            with (
+                patch("naukri_automation.profile_cli.CredentialStore", return_value=store),
+                patch(
+                    "naukri_automation.profile_cli.scheduler_for_profile",
+                    return_value=scheduler,
+                ),
+            ):
+                result = handle_management_command(args, paths)
+
+            self.assertEqual(0, result)
+            scheduler.remove.assert_called_once_with()
+            self.assertFalse(store.has("personal"))
+            self.assertFalse(profile_paths.config_dir.exists())
+            self.assertFalse(profile_paths.data_dir.exists())
+            self.assertFalse(paths.default_profile_file.exists())
+            self.assertTrue(resume.exists())
 
     def test_credentials_use_profile_key_without_exposing_password(self) -> None:
         backend = FakeKeyring()

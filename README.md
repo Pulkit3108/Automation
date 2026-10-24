@@ -103,6 +103,22 @@ Every profile has separate configuration, managed résumés, browser cookies, lo
 result, keyring entry, and native scheduler job. Two local profiles using the same Naukri username
 still modify the same remote Naukri account, so do not schedule them at overlapping times.
 
+### Update Or Remove A Profile
+
+Use commands rather than editing application-data files manually:
+
+```text
+naukri-auto profile edit personal --username new-login@example.com
+naukri-auto credentials update --profile personal
+naukri-auto resume add C:\Users\you\Documents\new-resume.pdf --profile personal --select
+naukri-auto profile remove personal
+```
+
+Password updates always use a hidden prompt. Résumé updates copy the selected source into managed
+profile storage. `profile remove` asks for confirmation, removes the native scheduler job and all
+managed profile data, deletes the keyring credential, and clears the default-profile pointer. It
+does not delete the repository or the original source résumé.
+
 ### 2. Check Local Readiness
 
 ```text
@@ -117,9 +133,14 @@ naukri-auto doctor --profile personal
 naukri-auto login --profile personal
 ```
 
-Complete login, CAPTCHA, and MFA manually. Authentication remains in a dedicated local Playwright profile and must never be committed or shared.
+The command fills and submits a recognized login form using the profile's stored credentials.
+Authentication remains in a dedicated local Playwright profile and must never be committed or
+shared. CAPTCHA and MFA remain manual.
 
-If the profile is already authenticated, the command confirms it and exits automatically. Otherwise it waits for the login form, fills stored credentials when the current form is recognized, and leaves submission, CAPTCHA, and MFA to the user. Leave the browser open until the command verifies the profile and closes it.
+If the profile is already authenticated, the command confirms it and exits. If Naukri rejects the
+email or password, the browser closes and the command prints the exact credential and username
+update commands. A recognized CAPTCHA or MFA challenge stays open for manual completion. Unknown
+login outcomes stop after the configured timeout instead of waiting indefinitely.
 
 ### 4. Perform A Headed Dry Run
 
@@ -198,6 +219,7 @@ All profile-bound commands accept `--profile <name>`. The option may be omitted 
 | List profiles | `naukri-auto profile list` |
 | Inspect a profile | `naukri-auto profile show <name>` |
 | Select the default | `naukri-auto profile default <name>` |
+| Remove a profile and its managed data | `naukri-auto profile remove <name>` |
 | Change username | `naukri-auto profile edit <name> --username <login>` |
 | Change browser | `naukri-auto profile edit <name> --browser-channel chrome|msedge|chromium` |
 | Replace schedule rules | `naukri-auto schedule set --profile <name> --times HH:MM,HH:MM [--days MON,FRI]` |
@@ -269,6 +291,8 @@ Existing profiles, managed résumés, keyring entries, and browser sessions are 
 ## Troubleshooting
 
 - `AUTH_REQUIRED`: run `naukri-auto login --profile <name>` and complete any CAPTCHA or MFA.
+- Login reports invalid email or password: run `naukri-auto credentials update --profile <name>`
+  for the password or `naukri-auto profile edit <name> --username <login>` for the email, then retry.
 - `SITE_CHANGED`: do not retry an upload blindly; inspect the timestamped screenshot and trace in the profile's `artifacts` directory.
 - `UPLOAD_FAILED`: the upload outcome was not verified; inspect Naukri manually before retrying.
 - `ALREADY_RUNNING`: another login or run owns the profile lock; wait for it to finish.

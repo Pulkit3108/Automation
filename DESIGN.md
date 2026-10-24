@@ -43,7 +43,7 @@ Playwright provides persistent browser contexts, actionable-element waiting, ins
 
 ## Commands
 
-### `naukri-auto profile create|list|show|edit|default`
+### `naukri-auto profile create|list|show|edit|default|remove`
 
 Create and manage isolated profiles containing:
 
@@ -57,6 +57,10 @@ Create and manage isolated profiles containing:
 
 Passwords are collected only through hidden prompts and stored in the OS keyring. Configuration must never contain a password, session cookie, or browser token.
 
+Profile removal is a confirmed lifecycle operation. It removes the installed native scheduler job,
+the profile's keyring credential, configuration, managed résumés, browser session, logs, artifacts,
+result, and default-profile pointer. It never deletes the source résumé or repository.
+
 ### `naukri-auto resume add|list|select|remove`
 
 Copy résumés into a dedicated per-profile folder, retain multiple choices, and select exactly one active file without silently overwriting an existing import.
@@ -65,7 +69,11 @@ Copy résumés into a dedicated per-profile folder, retain multiple choices, and
 
 Open the selected browser with a dedicated automation profile and let the user log in interactively. The profile is reused by scheduled runs. If CAPTCHA or MFA appears later, the run stops with `AUTH_REQUIRED` and asks the user to refresh this profile.
 
-When logged out, the command may fill username/password from the OS credential store after the login form is detected. Submission, CAPTCHA, and MFA remain manual. When already authenticated, it confirms the persisted session without reading the credential.
+When logged out, the command may fill and submit username/password from the OS credential store
+after the login form is recognized. It must classify authenticated, rejected, challenge-required,
+and unknown outcomes; rejected or unknown outcomes close cleanly with recovery guidance. CAPTCHA
+and MFA remain manual. When already authenticated, it confirms the persisted session without
+reading the credential.
 
 ### `naukri-auto doctor`
 

@@ -15,12 +15,14 @@ from naukri_automation.profile_store import (
     list_resumes,
     load_profile,
     read_last_result,
+    remove_profile,
     remove_resume,
     resolve_profile_name,
     select_resume,
     set_default_profile,
     update_profile,
 )
+from naukri_automation.run_lock import AlreadyRunningError, RunLock
 from naukri_automation.scheduling import SchedulerError, scheduler_for_profile
 
 
@@ -44,6 +46,9 @@ def add_management_parsers(commands: argparse._SubParsersAction[argparse.Argumen
     edit.set_defaults(headless=None)
     default = profile_commands.add_parser("default")
     default.add_argument("name")
+    remove = profile_commands.add_parser("remove")
+    remove.add_argument("name")
+    remove.add_argument("--yes", action="store_true", help="skip confirmation")
 
     credentials = commands.add_parser("credentials", help="manage OS-keyring credentials")
     credential_commands = credentials.add_subparsers(
@@ -98,6 +103,9 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         print(f"Default profile: {name}")
         return 0
 
+    if args.profile_command == "remove":
+        return _remove_profile_command(args, paths)
+
     if args.profile_command == "create":
         username = args.username or _prompt("Naukri username")
         resume = args.resume or Path(_prompt("Résumé path"))
@@ -141,6 +149,38 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         raise ConfigurationError("no profile changes were supplied")
     updated = update_profile(config, profile_paths, **changes)
     print(f"Profile updated: {updated.profile_name}")
+    return 0
+
+
+def _remove_profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
+    name = resolve_profile_name(paths, args.name)
+    profile_paths = paths.profile(name)
+    try:
+        with RunLock(profile_paths.run_lock):
+            pass
+    except AlreadyRunningError as error:
+        raise ConfigurationError(
+            "profile cleanup is blocked while a login or automation run is active"
+        ) from error
+    print(f"Remove profile '{name}' and all managed local data?")
+    print(f"Configuration: {profile_paths.config_dir}")
+    print(f"Managed data: {profile_paths.data_dir}")
+    if not args.yes and not _prompt_yes_no("Continue", False):
+        print("Profile removal cancelled.")
+        return 1
+
+    scheduler = scheduler_for_profile(name)
+    try:
+        if scheduler.is_installed():
+            scheduler.remove()
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ConfigurationError(
+            "could not inspect or remove the native scheduler job; profile was not removed"
+        ) from error
+    CredentialStore().remove(name)
+    remove_profile(paths, name)
+    print(f"Profile removed: {name}")
+    print("The source résumé and repository were not changed.")
     return 0
 
 
@@ -240,3 +280,15 @@ def _prompt(label: str) -> str:
     if not value:
         raise ConfigurationError(f"{label} is required")
     return value
+
+
+def _prompt_yes_no(label: str, default: bool) -> bool:
+    default_text = "Y/n" if default else "y/N"
+    value = input(f"{label} [{default_text}]: ").strip().lower()
+    if not value:
+        return default
+    if value in {"y", "yes"}:
+        return True
+    if value in {"n", "no"}:
+        return False
+    raise ConfigurationError(f"invalid yes/no response for {label}")

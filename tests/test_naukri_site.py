@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 
 from naukri_automation.naukri_site import (
     AUTHENTICATED_SELECTOR,
+    CHALLENGE_SELECTOR,
+    LOGIN_BUTTON_SELECTOR,
+    LOGIN_ERROR_SELECTOR,
     LOGIN_URL,
     PASSWORD_SELECTOR,
     PROFILE_URL,
@@ -54,6 +57,50 @@ class NaukriSiteTests(unittest.TestCase):
         password.wait_for.assert_called_once_with(state="visible", timeout=10_000)
         username.fill.assert_called_once_with("person@example.test")
         password.fill.assert_called_once_with("secret")
+
+    def test_login_submission_clicks_visible_button(self) -> None:
+        page = MagicMock()
+        button = _locator()
+        page.locator.return_value = button
+        site = NaukriSite(page, timeout_seconds=10)
+
+        self.assertTrue(site.submit_login())
+
+        page.locator.assert_called_once_with(LOGIN_BUTTON_SELECTOR)
+        button.wait_for.assert_called_once_with(state="visible", timeout=10_000)
+        button.click.assert_called_once_with()
+
+    def test_invalid_credentials_are_classified(self) -> None:
+        page = MagicMock()
+        page.url = LOGIN_URL
+        authenticated = _locator(count=0)
+        errors = _locator()
+        errors.all_inner_texts.return_value = [
+            "Invalid details. Please check the Email ID - Password combination."
+        ]
+        challenge = _locator(count=0)
+        username = _locator(count=1)
+        page.locator.side_effect = lambda selector: {
+            AUTHENTICATED_SELECTOR: authenticated,
+            LOGIN_ERROR_SELECTOR: errors,
+            CHALLENGE_SELECTOR: challenge,
+            USERNAME_SELECTOR: username,
+        }[selector]
+        site = NaukriSite(page, timeout_seconds=10)
+
+        self.assertEqual(AuthState.INVALID_CREDENTIALS, site.auth_state())
+
+    def test_wait_for_login_result_is_bounded(self) -> None:
+        page = MagicMock()
+        page.url = PROFILE_URL
+        authenticated = _locator(count=1)
+        page.locator.return_value = authenticated
+        site = NaukriSite(page, timeout_seconds=10)
+
+        state = site.wait_for_login_result()
+
+        self.assertEqual(AuthState.AUTHENTICATED, state)
+        page.wait_for_function.assert_called_once()
 
     def test_resume_inspection_waits_for_async_control(self) -> None:
         page = MagicMock()

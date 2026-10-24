@@ -106,6 +106,23 @@ def set_default_profile(paths: AppPaths, name: str) -> str:
     return normalized
 
 
+def remove_profile(paths: AppPaths, name: str) -> ProfilePaths:
+    normalized = resolve_profile_name(paths, name)
+    profile_paths = paths.profile(normalized)
+    try:
+        shutil.rmtree(profile_paths.data_dir)
+        shutil.rmtree(profile_paths.config_dir)
+    except OSError as error:
+        raise ConfigurationError(f"could not remove profile data: {error}") from error
+    try:
+        default_name = paths.default_profile_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        default_name = ""
+    if default_name == normalized:
+        paths.default_profile_file.unlink(missing_ok=True)
+    return profile_paths
+
+
 def import_resume(
     profile_paths: ProfilePaths,
     source: Path,
