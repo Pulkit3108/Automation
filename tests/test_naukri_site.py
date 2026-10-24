@@ -93,9 +93,9 @@ class NaukriSiteTests(unittest.TestCase):
         page.url = LOGIN_URL
         authenticated = _locator(count=0)
         errors = _locator()
-        errors.all_inner_texts.return_value = [
+        errors.inner_text.return_value = (
             "Invalid details. Please check the Email ID - Password combination."
-        ]
+        )
         challenge = _locator(count=0)
         username = _locator(count=1)
         page.locator.side_effect = lambda selector: {
@@ -107,6 +107,27 @@ class NaukriSiteTests(unittest.TestCase):
         site = NaukriSite(page, timeout_seconds=10)
 
         self.assertEqual(AuthState.INVALID_CREDENTIALS, site.auth_state())
+
+    def test_hidden_captcha_does_not_skip_login_form(self) -> None:
+        page = MagicMock()
+        page.url = LOGIN_URL
+        authenticated = _locator(count=0)
+        errors = _locator(count=0)
+        body = _locator()
+        body.inner_text.return_value = "Login"
+        challenge = _locator()
+        challenge.is_visible.return_value = False
+        username = _locator(count=1)
+        page.locator.side_effect = lambda selector: {
+            AUTHENTICATED_SELECTOR: authenticated,
+            LOGIN_ERROR_SELECTOR: errors,
+            "body": body,
+            CHALLENGE_SELECTOR: challenge,
+            USERNAME_SELECTOR: username,
+        }[selector]
+        site = NaukriSite(page, timeout_seconds=10)
+
+        self.assertEqual(AuthState.LOGIN_REQUIRED, site.auth_state())
 
     def test_wait_for_login_result_is_bounded(self) -> None:
         page = MagicMock()
@@ -202,6 +223,8 @@ def _locator(*, count: int = 1) -> MagicMock:
     locator = MagicMock()
     locator.first = locator
     locator.count.return_value = count
+    locator.nth.return_value = locator
+    locator.is_visible.return_value = count > 0
     return locator
 
 

@@ -108,12 +108,19 @@ class NaukriSite:
             self.page.wait_for_function(
                 """([authenticated, challenge]) => {
                     const text = (document.body?.innerText || '').toLowerCase();
+                    const visible = (selector) => [...document.querySelectorAll(selector)].some(
+                        (element) => {
+                            const style = getComputedStyle(element);
+                            const rect = element.getBoundingClientRect();
+                            return style.visibility !== 'hidden' && style.display !== 'none' &&
+                                rect.width > 0 && rect.height > 0;
+                        }
+                    );
                     const rejected =
                         /(invalid|incorrect|wrong).*(email|e-mail|username|password)/.test(text) ||
                         /(email|e-mail|username|password).*(invalid|incorrect|wrong)/.test(text);
                     return location.pathname.includes('/mnjuser/profile') ||
-                        document.querySelector(authenticated) ||
-                        document.querySelector(challenge) || rejected;
+                        visible(authenticated) || visible(challenge) || rejected;
                 }""",
                 arg=[AUTHENTICATED_SELECTOR, CHALLENGE_SELECTOR],
                 timeout=self.timeout_ms,
@@ -134,11 +141,11 @@ class NaukriSite:
 
     def auth_state(self) -> AuthState:
         current_url = self.page.url.lower()
-        if self._count(AUTHENTICATED_SELECTOR):
+        if self._has_visible(AUTHENTICATED_SELECTOR):
             return AuthState.AUTHENTICATED
         if self._has_invalid_credentials_error():
             return AuthState.INVALID_CREDENTIALS
-        if self._count(CHALLENGE_SELECTOR):
+        if self._has_visible(CHALLENGE_SELECTOR):
             return AuthState.CHALLENGE_REQUIRED
         if "/nlogin/" in current_url or self._count(USERNAME_SELECTOR):
             return AuthState.LOGIN_REQUIRED
@@ -226,17 +233,26 @@ class NaukriSite:
             r"|(?:email|e-mail|username|password).*(?:invalid|incorrect|wrong)",
             re.IGNORECASE,
         )
+        errors = self.page.locator(LOGIN_ERROR_SELECTOR)
         try:
-            messages = self.page.locator(LOGIN_ERROR_SELECTOR).all_inner_texts()
+            for index in range(errors.count()):
+                error = errors.nth(index)
+                if error.is_visible() and error_pattern.search(error.inner_text().strip()):
+                    return True
         except Exception:
-            messages = []
-        if any(error_pattern.search(message.strip()) for message in messages):
-            return True
+            pass
         try:
             body_text = self.page.locator("body").inner_text()
         except Exception:
             return False
         return bool(error_pattern.search(body_text))
+
+    def _has_visible(self, selector: str) -> bool:
+        locator = self.page.locator(selector)
+        try:
+            return any(locator.nth(index).is_visible() for index in range(locator.count()))
+        except Exception:
+            return False
 
     @staticmethod
     def _visible_text(locator: Any) -> str:

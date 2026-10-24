@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
@@ -39,13 +40,7 @@ class BrowserSession:
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         self._playwright = sync_playwright().start()
         try:
-            launch_options: dict[str, Any] = {
-                "user_data_dir": self.profile_dir,
-                "headless": self.headless,
-                "accept_downloads": False,
-            }
-            if self.browser_channel != "chromium":
-                launch_options["channel"] = self.browser_channel
+            launch_options = self._launch_options()
             self.context = self._playwright.chromium.launch_persistent_context(
                 **launch_options,
             )
@@ -67,6 +62,18 @@ class BrowserSession:
         self._tracing = True
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
         return self
+
+    def _launch_options(self) -> dict[str, Any]:
+        options: dict[str, Any] = {
+            "user_data_dir": self.profile_dir,
+            "headless": self.headless,
+            "accept_downloads": False,
+        }
+        if self.browser_channel != "chromium":
+            options["channel"] = self.browser_channel
+        if sys.platform in {"win32", "darwin"}:
+            options["chromium_sandbox"] = True
+        return options
 
     def __exit__(
         self,

@@ -2,12 +2,38 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from naukri_automation.browser_session import BrowserSession
 
 
 class BrowserSessionTests(unittest.TestCase):
+    def test_desktop_launch_uses_browser_sandbox(self) -> None:
+        session = BrowserSession(
+            Path("/tmp/profile"),
+            browser_channel="chrome",
+            headless=True,
+            timeout_seconds=10,
+        )
+
+        with patch("naukri_automation.browser_session.sys.platform", "win32"):
+            options = session._launch_options()
+
+        self.assertIs(options["chromium_sandbox"], True)
+
+    def test_linux_keeps_playwright_default_arguments(self) -> None:
+        session = BrowserSession(
+            Path("/tmp/profile"),
+            browser_channel="chrome",
+            headless=True,
+            timeout_seconds=10,
+        )
+
+        with patch("naukri_automation.browser_session.sys.platform", "linux"):
+            options = session._launch_options()
+
+        self.assertNotIn("chromium_sandbox", options)
+
     def test_cleanup_tolerates_browser_already_closed(self) -> None:
         session = BrowserSession(
             Path("/tmp/profile"),

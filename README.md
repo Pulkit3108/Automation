@@ -79,6 +79,10 @@ The default `browser_channel = "chrome"` uses the machine's installed Google Chr
 python -m playwright install chromium
 ```
 
+On Windows and macOS desktop runs, the application explicitly enables Playwright's Chromium
+sandbox. Linux retains Playwright's platform default because container and distribution
+requirements vary.
+
 ## First-Time Setup
 
 ### 1. Create A Profile
@@ -222,7 +226,7 @@ All profile-bound commands accept `--profile <name>`. The option may be omitted 
 | Select the default | `naukri-auto profile default <name>` |
 | Remove a profile and its managed data | `naukri-auto profile remove <name>` |
 | Change username | `naukri-auto profile edit <name> --username <login>` |
-| Change browser | `naukri-auto profile edit <name> --browser-channel chrome|msedge|chromium` |
+| Change browser | `naukri-auto profile edit <name> --browser-channel chrome\|msedge\|chromium` |
 | Replace schedule rules | `naukri-auto schedule set --profile <name> --times HH:MM,HH:MM [--days MON,FRI]` |
 | Add a schedule rule | `naukri-auto schedule add --profile <name> --times HH:MM,HH:MM [--days MON,FRI]` |
 | List schedule rules | `naukri-auto schedule list --profile <name>` |
@@ -294,6 +298,8 @@ Existing profiles, managed résumés, keyring entries, and browser sessions are 
 - `AUTH_REQUIRED`: run `naukri-auto login --profile <name>` and complete any CAPTCHA or MFA.
 - Login reports invalid email or password: run `naukri-auto credentials update --profile <name>`
   for the password or `naukri-auto profile edit <name> --username <login>` for the email, then retry.
+- Login page is not recognized: the command stops, prints local log and artifact paths, and saves a
+  screenshot and trace. Hidden CAPTCHA markup is not treated as an active challenge.
 - `SITE_CHANGED`: do not retry an upload blindly; inspect the timestamped screenshot and trace in the profile's `artifacts` directory.
 - `UPLOAD_FAILED`: the upload outcome was not verified; inspect Naukri manually before retrying.
 - `ALREADY_RUNNING`: another login or run owns the profile lock; wait for it to finish.

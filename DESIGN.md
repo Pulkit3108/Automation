@@ -40,6 +40,8 @@ The Python process will not remain running as a daemon and will not implement it
 - `pytest` and Ruff for automated verification.
 
 Playwright provides persistent browser contexts, actionable-element waiting, installed-browser channels, and failure traces. The default `chrome` channel uses the installed browser and does not require a separate browser download.
+Windows and macOS desktop launches explicitly enable Playwright's Chromium sandbox; Linux keeps
+Playwright's platform default.
 
 ## Commands
 
