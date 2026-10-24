@@ -107,6 +107,7 @@ job. Installation should display the exact schedule before applying it. The job 
 - identify that user explicitly in the task principal and use an interactive-token logon;
 - support independent everyday and selected-weekday rules with one or more local times;
 - use absolute executable and working-directory paths;
+- write Windows task-import XML as UTF-16 bytes with a matching declaration and BOM;
 - wake the computer from sleep when permitted;
 - start when a scheduled run was missed;
 - reject overlapping runs;

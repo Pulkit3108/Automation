@@ -34,7 +34,7 @@ def build_task_xml(
     profile_name: str | None = None,
     working_directory: Path | None = None,
     now: datetime | None = None,
-) -> str:
+) -> bytes:
     if (config_path is None) == (profile_name is None):
         raise SchedulerError("provide exactly one of config_path or profile_name")
     if not user_id.strip():
@@ -94,7 +94,7 @@ def build_task_xml(
     ET.SubElement(command, _tag("WorkingDirectory")).text = str(directory.resolve())
 
     ET.indent(task, space="  ")
-    return ET.tostring(task, encoding="unicode", xml_declaration=True)
+    return ET.tostring(task, encoding="utf-16", xml_declaration=True)
 
 
 class WindowsScheduler:
@@ -103,9 +103,9 @@ class WindowsScheduler:
             raise SchedulerError("Windows Task Scheduler commands are available only on Windows")
         self.task_name = task_name
 
-    def install(self, task_xml: str, temporary_path: Path) -> str:
+    def install(self, task_xml: bytes, temporary_path: Path) -> str:
         temporary_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path.write_text(task_xml, encoding="utf-8")
+        temporary_path.write_bytes(task_xml)
         try:
             return self._run("/Create", "/TN", self.task_name, "/XML", str(temporary_path), "/F")
         finally:

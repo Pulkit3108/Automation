@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -67,8 +68,10 @@ class WindowsScheduleTests(unittest.TestCase):
         self.assertIsNotNone(root.find(".//task:ScheduleByDay", namespaces=NS))
         arguments = root.findtext(".//task:Arguments", namespaces=NS)
         self.assertIn("-m naukri_automation", arguments or "")
-        self.assertNotIn("SYSTEM", xml.upper())
-        self.assertNotIn("RestartOnFailure", xml)
+        self.assertTrue(xml.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)))
+        self.assertIn("encoding='utf-16'", xml.decode("utf-16"))
+        self.assertNotIn(b"SYSTEM", xml.upper())
+        self.assertNotIn(b"RestartOnFailure", xml)
 
     def test_weekly_task_contains_selected_days(self) -> None:
         xml = build_task_xml(
@@ -125,7 +128,26 @@ class WindowsScheduleTests(unittest.TestCase):
             self.assertRaisesRegex(SchedulerError, "task XML is invalid"),
             tempfile.TemporaryDirectory() as directory,
         ):
-            WindowsScheduler().install("<Task />", Path(directory) / "task.xml")
+            WindowsScheduler().install(b"<Task />", Path(directory) / "task.xml")
+
+    def test_scheduler_install_writes_xml_bytes_unchanged(self) -> None:
+        payload = codecs.BOM_UTF16_LE + '<Task />'.encode("utf-16-le")
+        with (
+            patch("naukri_automation.scheduling.windows.sys.platform", "win32"),
+            tempfile.TemporaryDirectory() as directory,
+        ):
+            scheduler = WindowsScheduler()
+            task_path = Path(directory) / "task.xml"
+
+            def inspect_file(*arguments: str) -> str:
+                self.assertEqual(payload, task_path.read_bytes())
+                return "created"
+
+            with patch.object(scheduler, "_run", side_effect=inspect_file):
+                result = scheduler.install(payload, task_path)
+
+            self.assertEqual("created", result)
+            self.assertFalse(task_path.exists())
 
 
 if __name__ == "__main__":
