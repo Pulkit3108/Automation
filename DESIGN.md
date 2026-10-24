@@ -92,6 +92,7 @@ Perform one update attempt, verify the resulting UI, record the outcome, and exi
 Manage only the application's Windows scheduled task. Installation should display the exact schedule before applying it. The task should:
 
 - run as the current non-administrator user, never `SYSTEM`;
+- identify that user explicitly in the task principal and use an interactive-token logon;
 - use absolute executable and working-directory paths;
 - wake the computer from sleep when permitted;
 - start when a scheduled run was missed;

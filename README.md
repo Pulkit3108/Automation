@@ -34,13 +34,32 @@ Linux credential storage requires a working Secret Service-compatible keyring. I
 Run in PowerShell from this repository:
 
 ```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-Keep this virtual environment after installing the scheduled task. The task records the absolute Python interpreter path used during installation.
+Use native Windows CPython 3.12 or newer. If `where.exe python` resolves only to an MSYS2,
+Cygwin, or WSL interpreter, install native Windows Python first; a correct Windows virtual
+environment contains `.venv\Scripts\python.exe`, not `.venv\bin\python`.
+
+If PowerShell reports that script execution is disabled, enable locally created scripts for the
+current Windows user, then activate the environment again:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+.\.venv\Scripts\Activate.ps1
+```
+
+An organization-managed execution policy may override this setting. In that case, do not bypass
+the managed policy; use Command Prompt with `.venv\Scripts\activate.bat`, or run the virtual
+environment executable directly as `.\.venv\Scripts\python.exe`.
+
+Keep this checkout and its virtual environment at the same absolute paths after installing the
+scheduled task. The task records the virtual environment's absolute Python path, and the editable
+installation refers back to this checkout.
 
 ## macOS Or Linux Installation
 
@@ -209,7 +228,7 @@ From a clean checkout:
 
 ```bash
 git pull --ff-only
-source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate  # PowerShell: .\.venv\Scripts\Activate.ps1
 python -m pip install -e .
 naukri-auto doctor --profile <name>
 ```
@@ -223,6 +242,8 @@ Existing profiles, managed résumés, keyring entries, and browser sessions are 
 - `UPLOAD_FAILED`: the upload outcome was not verified; inspect Naukri manually before retrying.
 - `ALREADY_RUNNING`: another login or run owns the profile lock; wait for it to finish.
 - Browser launch failure: install the configured Chrome/Edge channel, or select `chromium` and run `python -m playwright install chromium`.
+- PowerShell blocks `Activate.ps1`: apply the current-user `RemoteSigned` command from
+  [Windows Installation](#windows-installation), unless an organization-managed policy overrides it.
 - Windows task does not run: remain signed in, confirm wake timers, run `schedule show`, then use `schedule run-now` for a controlled check.
 
 ## Development Checks

@@ -264,9 +264,11 @@ def _schedule(
         return 0
 
     config = load_config(config_path)
+    user_id = scheduler.current_user_id()
     task_xml = build_task_xml(
         config.schedule,
         python_executable=Path(sys.executable),
+        user_id=user_id,
         config_path=None,
         profile_name=profile_name,
         working_directory=paths.config_dir,

@@ -17,6 +17,9 @@ AUTHENTICATED_SELECTOR = (
     'button[aria-label="Open profile menu"], a[href="/mnjuser/profile"], '
     ".view-profile-wrapper, input#attachCV, input[type=\"file\"][name*=\"resume\" i]"
 )
+UPDATE_EVIDENCE_SELECTOR = (
+    '.updateOn, [class*="updateOn"], [class*="resume"] [class*="date"]'
+)
 
 
 class AuthState(StrEnum):
@@ -88,47 +91,60 @@ class NaukriSite:
         except Exception as error:
             raise SiteContractError("resume upload control was not found") from error
 
-        evidence = self.page.locator(
-            '.updateOn, [class*="updateOn"], [class*="resume"] [class*="date"]'
-        ).first
-        if evidence.count():
-            text = evidence.inner_text().strip()
-            if text:
-                return text
+        evidence = self.page.locator(UPDATE_EVIDENCE_SELECTOR).first
+        text = self._visible_text(evidence)
+        if text:
+            return text
         return "resume upload control is available"
 
     def upload_resume(self, resume_path: Path) -> str:
         self.inspect_resume_section()
         resume_input = self._resume_input().first
-        resume_input.set_input_files(str(resume_path))
-
         filename = resume_path.name
         filename_evidence = self.page.get_by_text(filename, exact=False).first
+        filename_before = self._visible_text(filename_evidence)
+        update_evidence = self.page.locator(UPDATE_EVIDENCE_SELECTOR).first
+        update_before = self._visible_text(update_evidence)
+
+        resume_input.set_input_files(str(resume_path))
+
+        confirmation = self.page.get_by_text(
+            re.compile(r"resume (uploaded|updated) successfully", re.IGNORECASE)
+        ).first
         try:
-            filename_evidence.wait_for(state="visible", timeout=self.timeout_ms)
-            return filename_evidence.inner_text().strip() or filename
+            confirmation.wait_for(state="visible", timeout=self.timeout_ms)
+            text = confirmation.inner_text().strip()
+            if text:
+                return text
         except Exception:
-            confirmation = self.page.get_by_text(
-                re.compile(r"resume (uploaded|updated) successfully", re.IGNORECASE)
-            ).first
+            pass
+
+        if not filename_before:
             try:
-                confirmation.wait_for(state="visible", timeout=self.timeout_ms)
-                text = confirmation.inner_text().strip()
+                filename_evidence.wait_for(state="visible", timeout=self.timeout_ms)
+                text = filename_evidence.inner_text().strip()
                 if text:
                     return text
             except Exception:
-                update_evidence = self.page.locator(
-                    '[class*="updateOn"], [class*="upload"] [class*="success"]'
-                ).first
-                try:
-                    update_evidence.wait_for(state="visible", timeout=self.timeout_ms)
-                    text = update_evidence.inner_text().strip()
-                    if text:
-                        return text
-                except Exception as error:
-                    raise UploadVerificationError(
-                        "upload was attempted but success could not be verified"
-                    ) from error
+                pass
+
+        try:
+            if update_before:
+                from playwright.sync_api import expect
+
+                expect(update_evidence).not_to_have_text(
+                    update_before,
+                    timeout=self.timeout_ms,
+                )
+            else:
+                update_evidence.wait_for(state="visible", timeout=self.timeout_ms)
+            update_after = self._visible_text(update_evidence)
+            if update_after and update_after != update_before:
+                return update_after
+        except Exception as error:
+            raise UploadVerificationError(
+                "upload was attempted but success could not be verified"
+            ) from error
 
         raise UploadVerificationError("upload success evidence was empty")
 
@@ -137,3 +153,12 @@ class NaukriSite:
 
     def _count(self, selector: str) -> int:
         return self.page.locator(selector).count()
+
+    @staticmethod
+    def _visible_text(locator: Any) -> str:
+        try:
+            if locator.count() and locator.is_visible():
+                return locator.inner_text().strip()
+        except Exception:
+            pass
+        return ""

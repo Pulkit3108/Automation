@@ -29,6 +29,7 @@ def build_task_xml(
     schedule: ScheduleConfig,
     *,
     python_executable: Path,
+    user_id: str,
     config_path: Path | None = None,
     profile_name: str | None = None,
     working_directory: Path | None = None,
@@ -36,6 +37,8 @@ def build_task_xml(
 ) -> str:
     if (config_path is None) == (profile_name is None):
         raise SchedulerError("provide exactly one of config_path or profile_name")
+    if not user_id.strip():
+        raise SchedulerError("Windows task user identifier is required")
     now = now or datetime.now().astimezone()
     boundary = _next_boundary(schedule, now)
     ET.register_namespace("", TASK_NAMESPACE)
@@ -48,8 +51,8 @@ def build_task_xml(
 
     triggers = ET.SubElement(task, _tag("Triggers"))
     trigger = ET.SubElement(triggers, _tag("CalendarTrigger"))
-    ET.SubElement(trigger, _tag("StartBoundary")).text = boundary.isoformat(timespec="seconds")
     ET.SubElement(trigger, _tag("Enabled")).text = "true"
+    ET.SubElement(trigger, _tag("StartBoundary")).text = boundary.isoformat(timespec="seconds")
     if schedule.frequency == "daily":
         daily = ET.SubElement(trigger, _tag("ScheduleByDay"))
         ET.SubElement(daily, _tag("DaysInterval")).text = "1"
@@ -62,6 +65,7 @@ def build_task_xml(
 
     principals = ET.SubElement(task, _tag("Principals"))
     principal = ET.SubElement(principals, _tag("Principal"), {"id": "CurrentUser"})
+    ET.SubElement(principal, _tag("UserId")).text = user_id
     ET.SubElement(principal, _tag("LogonType")).text = "InteractiveToken"
     ET.SubElement(principal, _tag("RunLevel")).text = "LeastPrivilege"
 
@@ -123,6 +127,25 @@ class WindowsScheduler:
         return completed.returncode == 0
 
     @staticmethod
+    def current_user_id() -> str:
+        try:
+            completed = subprocess.run(
+                ["whoami.exe"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SchedulerError(
+                f"could not resolve the current Windows user: {_command_error_detail(error)}"
+            ) from error
+        user_id = completed.stdout.strip()
+        if not user_id:
+            raise SchedulerError("could not resolve the current Windows user: empty result")
+        return user_id
+
+    @staticmethod
     def _run(*arguments: str) -> str:
         try:
             completed = subprocess.run(
@@ -133,8 +156,18 @@ class WindowsScheduler:
                 timeout=30,
             )
         except (OSError, subprocess.SubprocessError) as error:
-            raise SchedulerError(f"Task Scheduler command failed: {error}") from error
+            raise SchedulerError(
+                f"Task Scheduler command failed: {_command_error_detail(error)}"
+            ) from error
         return completed.stdout.strip()
+
+
+def _command_error_detail(error: BaseException) -> str:
+    if isinstance(error, subprocess.CalledProcessError):
+        output = (error.stderr or error.stdout or "").strip()
+        if output:
+            return output
+    return str(error)
 
 
 def _next_boundary(schedule: ScheduleConfig, now: datetime) -> datetime:
