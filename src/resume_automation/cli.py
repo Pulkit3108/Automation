@@ -18,6 +18,7 @@ from resume_automation.profile_cli import add_management_parsers, handle_managem
 from resume_automation.profile_store import resolve_profile_name
 from resume_automation.providers import create_provider
 from resume_automation.providers.base import AuthState
+from resume_automation.result import Outcome
 from resume_automation.run_lock import AlreadyRunningError, RunLock
 from resume_automation.schedule_cli import add_schedule_parser, handle_schedule
 from resume_automation.scheduling import SchedulerError
@@ -81,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{result.outcome.value}: {result.message}")
             if result.artifact_dir:
                 print(f"Artifacts: {result.artifact_dir}")
+            _print_run_guidance(result.outcome, profile_name)
             return result.exit_code
         if args.command == "schedule":
             return handle_schedule(
@@ -162,6 +164,9 @@ def _doctor(
     for name, passed, detail in checks:
         failed = failed or not passed
         print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
+    if not failed:
+        print(f"READY: profile '{profile_name}' passed all {len(checks)} checks.")
+        print(f"Next: resume-auto login --profile {profile_name}")
     return 1 if failed else 0
 
 
@@ -213,7 +218,7 @@ def _login(
             provider.open_login()
             initial_state = provider.wait_for_auth_state()
             if initial_state == AuthState.AUTHENTICATED:
-                print("Already authenticated; the dedicated browser profile is ready.")
+                _print_login_success(profile_name, already_authenticated=True)
                 return 0
             if initial_state == AuthState.LOGIN_REQUIRED:
                 password = CredentialStore().get(profile_name)
@@ -231,7 +236,7 @@ def _login(
                     result = provider.wait_for_login_result()
                     if result == AuthState.AUTHENTICATED:
                         LOGGER.info("login succeeded for profile %s", profile_name)
-                        print("Login confirmed; the dedicated browser profile is ready.")
+                        _print_login_success(profile_name)
                         return 0
                     if result == AuthState.INVALID_CREDENTIALS:
                         LOGGER.warning(
@@ -314,8 +319,24 @@ def _login(
                 return 3
     except AlreadyRunningError as error:
         raise ConfigurationError("another login or automation run is active") from error
-    print("Login confirmed; the dedicated browser profile is ready.")
+    _print_login_success(profile_name)
     return 0
+
+
+def _print_login_success(profile_name: str, *, already_authenticated: bool = False) -> None:
+    message = "Already authenticated" if already_authenticated else "Login confirmed"
+    print(f"{message}; the dedicated browser profile is ready.")
+    print(f"Next: resume-auto run --profile {profile_name} --dry-run --headed")
+
+
+def _print_run_guidance(outcome: Outcome, profile_name: str) -> None:
+    if outcome == Outcome.DRY_RUN_SUCCESS:
+        print(f"Next: resume-auto run --profile {profile_name} --headed")
+    elif outcome == Outcome.SUCCESS:
+        print(
+            "Next: resume-auto schedule set "
+            f"--profile {profile_name} --times 09:00,18:00"
+        )
 
 
 def _capture_login_failure(session: BrowserSession, paths: ProfilePaths) -> None:

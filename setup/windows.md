@@ -6,7 +6,7 @@ works from any PowerShell or Command Prompt window without activating a virtual 
 ## Requirements
 
 - Windows 11
-- Native Windows Python 3.12 or newer
+- Native Windows Python 3.12 or newer, including newer supported releases such as 3.15
 - Google Chrome by default; Microsoft Edge is optional
 - Internet access during installation and portal operations
 
@@ -26,10 +26,14 @@ python -m pipx ensurepath
 
 Close and reopen the terminal once so the updated `PATH` is loaded.
 
+`pipx ensurepath` may report two PATH additions: Python's user `Scripts` directory and pipx's
+application directory. That is normal. Its generic `source ~/.bashrc` suggestion is for Unix shells
+and does not apply to Windows PowerShell; reopening PowerShell is the correct action.
+
 ## Install Resume Automation
 
 ```powershell
-pipx install --python 3.12 git+https://github.com/Pulkit3108/resume-automation.git
+pipx install git+https://github.com/Pulkit3108/resume-automation.git
 resume-auto --version
 ```
 
@@ -51,6 +55,8 @@ through `schedule show`; use `schedule show --verbose` only for native diagnosti
 ## Troubleshooting
 
 - `pipx` is not recognized after `ensurepath`: close every terminal window and open a new one.
+- `ensurepath` mentions `source ~/.bashrc`: ignore that Unix-only suggestion on Windows and reopen
+  PowerShell.
 - `python` resolves to MSYS2/Cygwin/WSL: install native Windows Python and retry with that
   interpreter.
 - Chrome launch fails: install the configured browser channel or explicitly select managed

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -62,12 +64,16 @@ class ProfileTests(unittest.TestCase):
                 patch("resume_automation.profile_cli.getpass.getpass", return_value="secret"),
                 patch("resume_automation.profile_cli.CredentialStore", return_value=store),
             ):
-                result = handle_management_command(args, paths)
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    result = handle_management_command(args, paths)
 
             self.assertEqual(0, result)
             self.assertTrue(store.has("personal"))
             self.assertEqual("personal", resolve_profile_name(paths, None))
             self.assertEqual("naukri", load_profile(paths, "personal").provider)
+            self.assertIn("Default profile: personal", output.getvalue())
+            self.assertIn("Next: resume-auto doctor --profile personal", output.getvalue())
 
     def test_profile_owns_managed_resumes_and_default_selection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -42,11 +44,17 @@ class LoginCommandTests(unittest.TestCase):
                 patch("resume_automation.cli.CredentialStore.get") as get_password,
                 patch("builtins.input") as prompt,
             ):
-                result = _login(paths.config_file, paths, "personal")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    result = _login(paths.config_file, paths, "personal")
 
             self.assertEqual(0, result)
             get_password.assert_not_called()
             prompt.assert_not_called()
+            self.assertIn(
+                "Next: resume-auto run --profile personal --dry-run --headed",
+                output.getvalue(),
+            )
 
     def test_closed_browser_returns_clean_login_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

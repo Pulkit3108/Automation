@@ -46,18 +46,28 @@ def handle_schedule(
 ) -> int:
     if args.schedule_command in {"run-now", "remove"}:
         scheduler = scheduler_for_profile(profile_name)
-        output = scheduler.run_now() if args.schedule_command == "run-now" else scheduler.remove()
-        print(output)
+        if args.schedule_command == "run-now":
+            scheduler.run_now()
+            print(f"Scheduled run requested for profile: {profile_name}")
+        elif scheduler.is_installed():
+            scheduler.remove()
+            print(f"Schedule removed for profile: {profile_name}")
+        else:
+            print(f"Schedule is already absent for profile: {profile_name}")
         return 0
 
     config = load_config(config_path)
     if args.schedule_command == "show":
         scheduler = scheduler_for_profile(profile_name)
+        print(f"Profile: {profile_name}")
+        print(f"Schedule: {schedule_summary(config.schedule)}")
+        if not scheduler.is_installed():
+            print("Status: Not installed")
+            print(f"Next: resume-auto schedule install --profile {profile_name}")
+            return 0
         if args.schedule_verbose:
             print(scheduler.show(verbose=True))
         else:
-            print(f"Profile: {profile_name}")
-            print(f"Schedule: {schedule_summary(config.schedule)}")
             print(scheduler.show())
         return 0
     if args.schedule_command in {"set", "add"}:
@@ -65,10 +75,11 @@ def handle_schedule(
         rules = (rule,) if args.schedule_command == "set" else (*config.schedule.rules, rule)
         updated = replace(config, schedule=replace(config.schedule, rules=rules))
         write_config(updated, config_path)
-        print(schedule_summary(updated.schedule))
+        print(f"Schedule saved: {schedule_summary(updated.schedule)}")
+        print(f"Next: resume-auto schedule install --profile {profile_name}")
         return 0
     if args.schedule_command == "list":
-        print(schedule_summary(config.schedule))
+        print(f"Schedule: {schedule_summary(config.schedule)}")
         return 0
 
     scheduler = scheduler_for_profile(profile_name)
@@ -76,15 +87,16 @@ def handle_schedule(
     if not args.yes and not _prompt_yes_no("Continue", False):
         print("Schedule installation cancelled.")
         return 1
-    print(
-        scheduler.install_schedule(
-            config.schedule,
-            python_executable=python_executable,
-            working_directory=paths.config_dir,
-            data_directory=paths.data_dir,
-            profile_name=profile_name,
-        )
+    scheduler.install_schedule(
+        config.schedule,
+        python_executable=python_executable,
+        working_directory=paths.config_dir,
+        data_directory=paths.data_dir,
+        profile_name=profile_name,
     )
+    print(f"Schedule installed for profile: {profile_name}")
+    print(f"Schedule: {schedule_summary(config.schedule)}")
+    print(f"Next: resume-auto schedule show --profile {profile_name}")
     return 0
 
 

@@ -39,7 +39,7 @@ Close and reopen the terminal once so the updated `PATH` is loaded.
 ## Install Resume Automation
 
 ```bash
-pipx install --python 3.12 git+https://github.com/Pulkit3108/resume-automation.git
+pipx install git+https://github.com/Pulkit3108/resume-automation.git
 resume-auto --version
 ```
 

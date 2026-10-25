@@ -1,72 +1,112 @@
-# Setup And Usage
+# First-Time Setup And Usage
 
-Complete the platform installation first:
+Install the global `resume-auto` command first:
 
-- [Windows](windows.md)
-- [macOS and Linux](macos-linux.md)
+- [Windows installation](windows.md)
+- [macOS and Linux installation](macos-linux.md)
 
-The commands below are shared across supported operating systems after pipx installation. They work
-from any terminal; no virtual-environment activation is required.
+Then complete the required steps below in order. Each successful command prints the next command.
+No virtual-environment activation is required.
 
-## 1. Create A Profile
+## Step 1: Create A Profile
 
 ```text
 resume-auto profile create personal --provider naukri --username you@example.com --resume /absolute/path/resume.pdf
 ```
 
-On Windows, use a quoted Windows path such as `"C:\Users\you\Documents\resume.pdf"`. The command
-prompts for the password without displaying it and stores it in the OS keyring. It copies the
-résumé into managed profile storage, so the source file can later move without breaking the profile.
+On Windows, use a quoted path such as `"C:\Users\you\Documents\resume.pdf"`. The password is
+collected through a hidden prompt and stored in the OS keyring. The résumé is copied into managed
+profile storage. The first profile automatically becomes the default; do not run `profile default`
+unless you later create additional profiles.
 
-The first profile becomes the default. With multiple profiles, pass `--profile <name>` or choose a
-default:
+Expected result:
 
 ```text
-resume-auto profile default personal
+Profile created: personal
+Default profile: personal
+Next: resume-auto doctor --profile personal
 ```
 
-## 2. Check Readiness
+## Step 2: Check Readiness
 
 ```text
 resume-auto doctor --profile personal
 ```
 
-`doctor` checks Python, configuration, managed résumé, keyring, Playwright, browser launch, native
-scheduler availability, and local data paths. It does not log in, upload, or send notifications.
+This is read-only. Continue only when every check passes and the final line begins with `READY`.
 
-## 3. Establish Login
+## Step 3: Establish Login
 
 ```text
 resume-auto login --profile personal
 ```
 
-The command reuses a dedicated browser profile, fills and submits a recognized login form, and
-closes after authentication. CAPTCHA and MFA remain manual. Invalid credentials produce exact
-username/password recovery commands. Unknown page contracts stop after the configured timeout and
-save a private local screenshot and Playwright trace.
+The command fills and submits a recognized login form. CAPTCHA and MFA remain manual. Invalid
+credentials produce recovery commands; unknown pages stop and save private diagnostics.
 
-## 4. Perform A Dry Run
+Continue when the command reports `Login confirmed` or `Already authenticated`.
+
+## Step 4: Run The Safe Dry Run
 
 ```text
 resume-auto run --profile personal --dry-run --headed
 ```
 
-The dry run confirms authentication and the résumé control, then stops before file selection or
-upload.
+The dry run checks authentication and the résumé control, then stops before selecting or uploading
+a file. Continue only after `DRY_RUN_SUCCESS`.
 
-## 5. Perform One Controlled Upload
+## Step 5: Perform One Controlled Upload
 
 ```text
 resume-auto run --profile personal --headed
 ```
 
-Success requires new UI evidence: a success message, a newly appearing filename, or changed update
-evidence. Do not retry when the outcome is unknown; inspect the portal and local artifacts first.
+This changes the remote portal profile. Success requires new UI evidence. Never retry an unknown
+outcome without checking the portal and private diagnostics first.
 
-## Update Profile Data
+Continue only after `SUCCESS`.
+
+## Step 6: Configure And Install Scheduling
+
+Saving rules does not activate scheduling. Both commands are required:
 
 ```text
-# Change login email or username
+# Save rules: every day at 09:00 and 18:00
+resume-auto schedule set --profile personal --times 09:00,18:00
+
+# Install or replace the native scheduler job
+resume-auto schedule install --profile personal
+```
+
+Enter `y` at the installation confirmation. Times use the local 24-hour `HH:MM` clock. To add a
+separate selected-day rule before installation:
+
+```text
+resume-auto schedule add --profile personal --days MON,WED,FRI --times 13:30
+```
+
+Rules may use any combination of `MON,TUE,WED,THU,FRI,SAT,SUN`. Overlapping occurrences are
+rejected. A profile supports up to 48 native triggers.
+
+## Step 7: Verify The Installed Schedule
+
+```text
+resume-auto schedule show --profile personal
+```
+
+The compact output should show the profile, saved rules, native task/job, `Ready` or equivalent
+status, and next run. Use `--verbose` only for native scheduler troubleshooting.
+
+Setup is complete. The installed job survives terminal closure and reboot. Remain signed into the
+same OS account before a scheduled time; a locked screen or inactive display is supported. Times
+missed while powered off are skipped instead of replayed.
+
+## Later: Update Profile Data
+
+These are maintenance actions, not first-time setup steps:
+
+```text
+# Change username or email
 resume-auto profile edit personal --username new-login@example.com
 
 # Replace the password through a hidden prompt
@@ -82,68 +122,34 @@ resume-auto profile show personal
 Use `resume list`, `resume select`, and `resume remove` to manage inactive copies. Passwords are
 never accepted as command arguments.
 
-## Configure Scheduling
-
-Times use the local 24-hour `HH:MM` clock. Omitting `--days` means every day.
+## Later: Manage Scheduling
 
 ```text
-# Replace all rules: every day at 09:00 and 18:00
-resume-auto schedule set --profile personal --times 09:00,18:00
-
-# Add selected-day rules
-resume-auto schedule add --profile personal --days MON,WED,FRI --times 13:30
-resume-auto schedule add --profile personal --days SUN --times 10:15
-
-# Review and install once
+# Show saved rules
 resume-auto schedule list --profile personal
+
+# Show compact or native status
+resume-auto schedule show --profile personal
+resume-auto schedule show --profile personal --verbose
+
+# Remove future scheduled runs but retain profile and rules
+resume-auto schedule remove --profile personal
+
+# Install retained rules again
 resume-auto schedule install --profile personal
 ```
 
-Rules may use any combination of `MON,TUE,WED,THU,FRI,SAT,SUN`. Overlapping occurrences are
-rejected. A profile supports up to 48 native triggers.
+`schedule run-now` performs a real upload and should be used only as an intentional write.
 
-Inspect the compact status by default, or request native diagnostics:
+## Diagnostics And Resource Behavior
 
-```text
-resume-auto schedule show --profile personal
-resume-auto schedule show --profile personal --verbose
-```
-
-`schedule run-now` performs a real upload and should be used only as an intentional controlled
-write. Stop future runs without deleting the profile by removing the native job:
-
-```text
-resume-auto schedule remove --profile personal
-```
-
-The configured rules remain available and can be installed again later.
-
-## Persistence And Resource Behavior
-
-- Installed jobs survive terminal closure and reboot. Missed times while powered off are skipped;
-  only the next future rule runs.
-- Sign in to the same OS account before a scheduled time so the keyring and browser profile are
-  available. A locked screen or inactive display does not block a headless run.
-- Native scheduling and a per-profile process lock prevent overlap. Missed occurrences are not
-  replayed as a backlog.
+- Native scheduling and a per-profile process lock prevent overlap.
 - Each run reuses cookies/session data but creates and closes one browser process and context.
-- Successful traces are discarded. Failure artifacts follow the configured retention period.
-- Logs rotate at 1 MB with five backups. Windows jobs have a 30-minute execution limit.
-
-## Results And Diagnostics
-
-Run results include `SUCCESS`, `DRY_RUN_SUCCESS`, `CONFIG_ERROR`, `AUTH_REQUIRED`, `SITE_CHANGED`,
-`UPLOAD_FAILED`, `NETWORK_ERROR`, `ALREADY_RUNNING`, `DEPENDENCY_ERROR`, and `INTERNAL_ERROR`.
-
-Each profile stores rotating logs, `last-result.json`, and bounded failure artifacts in its
-platform-specific mutable-data directory. These files can contain private account context and must
-not be committed or shared without review.
-
-## Optional Notifications
-
-Notifications are disabled by default. A private ntfy-compatible HTTPS endpoint and topic may be
-configured in the generated profile TOML. Run `doctor` after editing it. Notification failure never
-changes a verified upload into a failure.
+- Successful traces are discarded; failure artifacts follow the configured retention period.
+- Logs rotate at 1 MB with five backups. Windows jobs have a 30-minute limit.
+- Stable outcomes include `SUCCESS`, `DRY_RUN_SUCCESS`, `CONFIG_ERROR`, `AUTH_REQUIRED`,
+  `SITE_CHANGED`, `UPLOAD_FAILED`, `NETWORK_ERROR`, `ALREADY_RUNNING`, `DEPENDENCY_ERROR`, and
+  `INTERNAL_ERROR`.
 
 ## Remove A Profile Completely
 
@@ -153,4 +159,6 @@ resume-auto profile remove personal
 
 After confirmation, this removes the native scheduler job, keyring credential, managed résumé
 copies, browser session, configuration, logs, results, artifacts, lock, and default-profile pointer.
-It does not remove the repository or original source résumé.
+It does not remove the original source résumé.
+
+For application updates and uninstall, see [install, update, and uninstall](install-update.md).

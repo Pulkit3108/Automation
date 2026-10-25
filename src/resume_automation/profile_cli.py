@@ -132,10 +132,14 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
                 f"profile {config.profile_name} was created, but its credential was not stored; "
                 "run 'resume-auto credentials update' after fixing the OS keyring"
             ) from error
-        if len(list_profiles(paths)) == 1:
+        became_default = len(list_profiles(paths)) == 1
+        if became_default:
             set_default_profile(paths, config.profile_name)
         print(f"Profile created: {config.profile_name}")
         print(f"Managed résumé: {profile_paths.resumes / config.resume_path.name}")
+        if became_default:
+            print(f"Default profile: {config.profile_name}")
+        print(f"Next: resume-auto doctor --profile {config.profile_name}")
         return 0
 
     name = resolve_profile_name(paths, args.name)
