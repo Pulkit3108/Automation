@@ -6,14 +6,14 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
-from naukri_automation.config import (
+from resume_automation.config import (
     ALLOWED_RESUME_SUFFIXES,
     AppConfig,
     ConfigurationError,
     load_config,
     write_config,
 )
-from naukri_automation.paths import AppPaths, ProfilePaths
+from resume_automation.paths import AppPaths, ProfilePaths
 
 PROFILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -55,7 +55,7 @@ def resolve_profile_name(paths: AppPaths, requested: str | None) -> str:
     if len(profiles) == 1:
         return profiles[0]
     if not profiles:
-        raise ConfigurationError("no profiles exist; run 'naukri-auto profile create'")
+        raise ConfigurationError("no profiles exist; run 'resume-auto profile create'")
     raise ConfigurationError("multiple profiles exist; specify --profile or set a default")
 
 
@@ -70,18 +70,20 @@ def create_profile(
     name: str,
     username: str,
     resume_source: Path,
+    provider: str = "naukri",
 ) -> tuple[AppConfig, ProfilePaths]:
     normalized = validate_profile_name(name)
     profile_paths = paths.profile(normalized)
     if profile_paths.config_file.exists():
         raise ConfigurationError(f"profile already exists: {normalized}")
     if not username.strip():
-        raise ConfigurationError("Naukri username is required")
+        raise ConfigurationError("portal username is required")
 
     profile_paths.ensure_runtime_dirs()
     managed_resume = import_resume(profile_paths, resume_source)
     config = AppConfig(
         profile_name=normalized,
+        provider=provider,
         username=username.strip(),
         resume_path=managed_resume,
     )

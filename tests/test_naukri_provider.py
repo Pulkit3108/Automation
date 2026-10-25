@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.naukri_site import (
+from resume_automation.providers.base import AuthState, UploadVerificationError
+from resume_automation.providers.naukri import (
     AUTHENTICATED_SELECTOR,
     CHALLENGE_SELECTOR,
     LOGIN_BUTTON_SELECTOR,
@@ -15,13 +16,11 @@ from naukri_automation.naukri_site import (
     RESUME_SELECTOR,
     UPDATE_EVIDENCE_SELECTOR,
     USERNAME_SELECTOR,
-    AuthState,
-    NaukriSite,
-    UploadVerificationError,
+    NaukriProvider,
 )
 
 
-class NaukriSiteTests(unittest.TestCase):
+class NaukriProviderTests(unittest.TestCase):
     def test_waits_for_authenticated_marker_before_deciding_state(self) -> None:
         page = MagicMock()
         page.url = LOGIN_URL
@@ -33,7 +32,7 @@ class NaukriSiteTests(unittest.TestCase):
             USERNAME_SELECTOR: username,
             AUTHENTICATED_SELECTOR: authenticated,
         }[selector]
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         state = site.wait_for_auth_state()
 
@@ -48,7 +47,7 @@ class NaukriSiteTests(unittest.TestCase):
             USERNAME_SELECTOR: username,
             PASSWORD_SELECTOR: password,
         }[selector]
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         filled = site.fill_login("person@example.test", "secret")
 
@@ -62,7 +61,7 @@ class NaukriSiteTests(unittest.TestCase):
         page = MagicMock()
         button = _locator()
         page.locator.return_value = button
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         self.assertTrue(site.submit_login())
 
@@ -81,7 +80,7 @@ class NaukriSiteTests(unittest.TestCase):
         page.get_by_role.side_effect = lambda role, **kwargs: (
             button if role == "button" else link
         )
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         site.open_login()
 
@@ -104,7 +103,7 @@ class NaukriSiteTests(unittest.TestCase):
             CHALLENGE_SELECTOR: challenge,
             USERNAME_SELECTOR: username,
         }[selector]
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         self.assertEqual(AuthState.INVALID_CREDENTIALS, site.auth_state())
 
@@ -125,7 +124,7 @@ class NaukriSiteTests(unittest.TestCase):
             CHALLENGE_SELECTOR: challenge,
             USERNAME_SELECTOR: username,
         }[selector]
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         self.assertEqual(AuthState.LOGIN_REQUIRED, site.auth_state())
 
@@ -134,7 +133,7 @@ class NaukriSiteTests(unittest.TestCase):
         page.url = PROFILE_URL
         authenticated = _locator(count=1)
         page.locator.return_value = authenticated
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         state = site.wait_for_login_result()
 
@@ -156,7 +155,7 @@ class NaukriSiteTests(unittest.TestCase):
             RESUME_SELECTOR: resume,
             UPDATE_EVIDENCE_SELECTOR: evidence,
         }[selector]
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         result = site.inspect_resume_section()
 
@@ -182,7 +181,7 @@ class NaukriSiteTests(unittest.TestCase):
             filename if value == "resume.pdf" else confirmation
         )
         page.wait_for_function.side_effect = RuntimeError("no post-upload change")
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         with (
             patch.object(site, "inspect_resume_section"),
@@ -208,7 +207,7 @@ class NaukriSiteTests(unittest.TestCase):
         page.get_by_text.side_effect = lambda value, **kwargs: (
             filename if value == "resume.pdf" else confirmation
         )
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         with patch.object(site, "inspect_resume_section"):
             evidence = site.upload_resume(Path("resume.pdf"))
@@ -234,7 +233,7 @@ class NaukriSiteTests(unittest.TestCase):
         page.get_by_text.side_effect = lambda value, **kwargs: (
             filename if value == "resume.pdf" else confirmation
         )
-        site = NaukriSite(page, timeout_seconds=10)
+        site = NaukriProvider(page, timeout_seconds=10)
 
         with patch.object(site, "inspect_resume_section"):
             evidence = site.upload_resume(Path("resume.pdf"))

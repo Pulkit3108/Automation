@@ -7,12 +7,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from naukri_automation.paths import get_app_paths
+from resume_automation.paths import get_app_paths
 
 ALLOWED_RESUME_SUFFIXES = {".pdf", ".doc", ".docx"}
 DAY_NAMES = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 TOPIC_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 SUPPORTED_BROWSER_CHANNELS = {"chrome", "chromium", "msedge"}
+SUPPORTED_PROVIDERS = ("naukri",)
 MAX_SCHEDULE_TRIGGERS = 48
 
 
@@ -43,6 +44,7 @@ class ScheduleConfig:
 class AppConfig:
     resume_path: Path
     profile_name: str = "default"
+    provider: str = "naukri"
     username: str = "unknown"
     browser_channel: str = "chrome"
     headless: bool = True
@@ -58,6 +60,8 @@ class AppConfig:
 
         if not TOPIC_PATTERN.fullmatch(self.profile_name):
             errors.append("profile_name may contain only letters, numbers, _ and -")
+        if self.provider not in SUPPORTED_PROVIDERS:
+            errors.append(f"unsupported provider: {self.provider}")
         if not self.username.strip() or len(self.username) > 254:
             errors.append("username must contain between 1 and 254 characters")
         if not resume.is_absolute():
@@ -134,7 +138,7 @@ def load_config(path: Path | None = None, *, require_resume: bool = True) -> App
         raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
         raise ConfigurationError(
-            f"configuration not found: {config_path}; run 'naukri-auto profile create'"
+            f"configuration not found: {config_path}; run 'resume-auto profile create'"
         ) from error
     except tomllib.TOMLDecodeError as error:
         raise ConfigurationError(f"invalid TOML in {config_path}: {error}") from error
@@ -145,6 +149,7 @@ def load_config(path: Path | None = None, *, require_resume: bool = True) -> App
     config = AppConfig(
         resume_path=Path(_string(raw, "resume_path")).expanduser(),
         profile_name=_string(raw, "profile_name", "default"),
+        provider=_string(raw, "provider", "naukri").lower(),
         username=_string(raw, "username", "unknown"),
         browser_channel=_string(raw, "browser_channel", "chrome").lower(),
         headless=_boolean(raw, "headless", True),
@@ -182,6 +187,7 @@ def write_config(config: AppConfig, path: Path | None = None) -> Path:
 def render_config(config: AppConfig) -> str:
     lines = [
         f"profile_name = {_toml_string(config.profile_name)}",
+        f"provider = {_toml_string(config.provider)}",
         f"username = {_toml_string(config.username)}",
         f"resume_path = {_toml_string(str(config.resume_path.expanduser()))}",
         f"browser_channel = {_toml_string(config.browser_channel)}",

@@ -2,7 +2,8 @@
 
 ## Scope
 
-- `src/naukri_automation/` is the supported implementation. Do not recreate root-level ad hoc automation scripts.
+- `src/resume_automation/` is the supported implementation. Do not recreate root-level ad hoc
+  automation scripts.
 - Keep manual profile, credential, résumé, login, doctor, and run commands compatible with Windows, macOS, and Linux.
 - Use the native persistent scheduler on each supported OS: Windows Task Scheduler, macOS
   `launchd`, and Linux `systemd --user`. The application must remain a one-shot command, not a
@@ -10,7 +11,8 @@
 
 ## Safety Boundaries
 
-- Treat every non-dry `naukri-auto run` as an external write to the user's Naukri profile. Run it only with explicit authorization for that upload.
+- Treat every non-dry `resume-auto run` as an external write to the configured portal profile. Run
+  it only with explicit authorization for that upload.
 - Run `login` only when the user requests authentication setup or refresh. A recognized login form
   may submit stored credentials and must detect rejection; CAPTCHA and MFA remain manual and must
   never be bypassed.
@@ -30,8 +32,10 @@
 
 ## Architecture Invariants
 
-- Keep command parsing and orchestration in `cli.py` and `profile_cli.py`; keep Naukri-specific page behavior and selectors in `naukri_site.py`.
-- Use a dedicated persistent browser directory per profile and a separate lock, result, log/artifact area, keyring entry, and Windows task name per profile.
+- Keep top-level dispatch in `cli.py`, lifecycle commands in `profile_cli.py`/`schedule_cli.py`, and
+  portal-specific behavior under `providers/<name>.py` behind `providers/base.py`.
+- Use a dedicated persistent browser directory per profile and a separate lock, result,
+  log/artifact area, keyring entry, and native scheduler identity per profile.
 - Validate configuration and the selected managed résumé before opening the browser.
 - Report upload success only after post-upload UI evidence is observed. Selecting a file is not proof of success.
 - Preserve stable outcomes and exit codes in `result.py`; notifications remain best-effort and must not change a successful upload into a failure.
@@ -50,7 +54,8 @@
 
 ## Verification
 
-- Keep default automated tests isolated from live browsers, Naukri, notifications, OS keyrings, and Task Scheduler by using test doubles.
+- Keep default automated tests isolated from live browsers, job portals, notifications, OS
+  keyrings, and native schedulers by using test doubles.
 - For normal source changes, run:
 
   ```text
@@ -60,7 +65,8 @@
   ```
 
 - Add or update focused tests for changed behavior, especially authentication classification, dry-run isolation, upload verification, profile separation, configuration validation, and task XML generation.
-- Do not treat mocks as proof of live Naukri or Windows behavior. Record environment-specific validation separately from product documentation.
+- Do not treat mocks as proof of live portal or native scheduler behavior. Record environment-
+  specific validation separately from product documentation.
 
 ## Documentation
 
@@ -68,8 +74,9 @@
 - Keep platform-neutral usage under `setup/README.md` and platform-specific installation or
   troubleshooting under `setup/windows.md` or `setup/macos-linux.md`.
 - Keep `DESIGN.md` limited to current architecture, invariants, and durable design decisions.
+- Keep clone-based development instructions in `CONTRIBUTING.md`; end-user installation uses pipx.
 - Do not add task progress, milestone history, migration history, completed/pending work lists, or temporary validation notes to repository documentation.
-- Keep command examples synchronized with `naukri-auto --help` and use synthetic values.
+- Keep command examples synchronized with `resume-auto --help` and use synthetic values.
 
 ## Git And Change Hygiene
 

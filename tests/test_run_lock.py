@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from naukri_automation.run_lock import AlreadyRunningError, RunLock
+from resume_automation.run_lock import AlreadyRunningError, RunLock
 
 
 class RunLockTests(unittest.TestCase):
@@ -41,7 +41,7 @@ class RunLockTests(unittest.TestCase):
             )
 
             with (
-                patch("naukri_automation.run_lock._process_exists", return_value=False),
+                patch("resume_automation.run_lock._process_exists", return_value=False),
                 RunLock(lock_path),
             ):
                 self.assertTrue(lock_path.exists())

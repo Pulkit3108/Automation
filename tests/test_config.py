@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from naukri_automation.config import (
+from resume_automation.config import (
     AppConfig,
     ConfigurationError,
     NotificationConfig,
@@ -94,6 +94,15 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ConfigurationError, "browser_channel"):
+            config.validate(require_resume=False)
+
+    def test_unknown_provider_is_rejected(self) -> None:
+        config = AppConfig(
+            resume_path=Path("/tmp/resume.pdf"),
+            provider="unknown",
+        )
+
+        with self.assertRaisesRegex(ConfigurationError, "unsupported provider"):
             config.validate(require_resume=False)
 
 

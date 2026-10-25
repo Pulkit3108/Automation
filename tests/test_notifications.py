@@ -3,9 +3,9 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.config import NotificationConfig
-from naukri_automation.notifications import send_notification
-from naukri_automation.result import Outcome, RunResult
+from resume_automation.config import NotificationConfig
+from resume_automation.notifications import send_notification
+from resume_automation.result import Outcome, RunResult
 
 
 class NotificationTests(unittest.TestCase):

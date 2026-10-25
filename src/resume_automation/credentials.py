@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from naukri_automation.config import ConfigurationError
+from resume_automation.config import ConfigurationError
 
-SERVICE_NAME = "naukri-resume-automation"
+SERVICE_NAME = "resume-automation"
 
 
 class CredentialStore:

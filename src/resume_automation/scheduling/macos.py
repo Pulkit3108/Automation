@@ -5,8 +5,8 @@ import plistlib
 import subprocess
 from pathlib import Path
 
-from naukri_automation.config import ScheduleConfig
-from naukri_automation.scheduling.base import SchedulerError
+from resume_automation.config import ScheduleConfig
+from resume_automation.scheduling.base import SchedulerError
 
 WEEKDAYS = {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7}
 
@@ -19,7 +19,7 @@ class MacOSScheduler:
         home: Path | None = None,
         uid: int | None = None,
     ) -> None:
-        self.label = f"com.naukri-resume-automation.{profile_name}"
+        self.label = f"com.resumeautomation.{profile_name}"
         self.plist_path = (home or Path.home()) / "Library/LaunchAgents" / f"{self.label}.plist"
         self.domain = f"gui/{os.getuid() if uid is None else uid}"
 
@@ -39,7 +39,7 @@ class MacOSScheduler:
             "ProgramArguments": [
                 str(python_executable.resolve()),
                 "-m",
-                "naukri_automation",
+                "resume_automation",
                 "run",
                 "--profile",
                 profile_name,

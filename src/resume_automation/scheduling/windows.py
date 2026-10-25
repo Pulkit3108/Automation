@@ -7,10 +7,10 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from naukri_automation.config import ScheduleConfig, ScheduleRule
-from naukri_automation.scheduling.base import SchedulerError
+from resume_automation.config import ScheduleConfig, ScheduleRule
+from resume_automation.scheduling.base import SchedulerError
 
-TASK_NAME = "NaukriResumeAutomation"
+TASK_NAME = "ResumeAutomation"
 TASK_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
 DAY_TAGS = {
     "MON": "Monday",
@@ -43,7 +43,7 @@ def build_task_xml(
     task = ET.Element(_tag("Task"), {"version": "1.4"})
     registration = ET.SubElement(task, _tag("RegistrationInfo"))
     ET.SubElement(registration, _tag("Description")).text = (
-        "Uploads the configured resume to Naukri using the current user's local browser profile."
+        "Uploads the configured resume using the current user's local portal browser profile."
     )
 
     triggers = ET.SubElement(task, _tag("Triggers"))
@@ -82,7 +82,7 @@ def build_task_xml(
     actions = ET.SubElement(task, _tag("Actions"), {"Context": "CurrentUser"})
     command = ET.SubElement(actions, _tag("Exec"))
     ET.SubElement(command, _tag("Command")).text = str(python_executable.resolve())
-    arguments = "-m naukri_automation"
+    arguments = "-m resume_automation"
     if profile_name is not None:
         arguments += f' run --profile "{profile_name}"'
     else:

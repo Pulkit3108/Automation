@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-APP_NAME = "NaukriAutomation"
+APP_NAME = "ResumeAutomation"
 
 
 @dataclass(frozen=True)
@@ -107,8 +107,8 @@ class ProfilePaths:
 
 
 def get_app_paths() -> AppPaths:
-    config_override = os.environ.get("NAUKRI_AUTO_CONFIG_DIR")
-    data_override = os.environ.get("NAUKRI_AUTO_DATA_DIR")
+    config_override = os.environ.get("RESUME_AUTO_CONFIG_DIR")
+    data_override = os.environ.get("RESUME_AUTO_DATA_DIR")
 
     if config_override:
         config_dir = Path(config_override).expanduser()

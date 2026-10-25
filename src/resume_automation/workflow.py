@@ -7,22 +7,22 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from naukri_automation.browser_session import BrowserDependencyError, BrowserSession
-from naukri_automation.config import AppConfig, ConfigurationError
-from naukri_automation.naukri_site import (
+from resume_automation.browser_session import BrowserDependencyError, BrowserSession
+from resume_automation.config import AppConfig, ConfigurationError
+from resume_automation.notifications import send_notification
+from resume_automation.paths import AppPaths, ProfilePaths
+from resume_automation.providers import create_provider
+from resume_automation.providers.base import (
     AuthenticationRequired,
-    NaukriSite,
     SiteContractError,
     UploadVerificationError,
 )
-from naukri_automation.notifications import send_notification
-from naukri_automation.paths import AppPaths, ProfilePaths
-from naukri_automation.result import Outcome, RunResult
-from naukri_automation.run_lock import AlreadyRunningError, RunLock
+from resume_automation.result import Outcome, RunResult
+from resume_automation.run_lock import AlreadyRunningError, RunLock
 
 LOGGER = logging.getLogger(__name__)
 BrowserFactory = Callable[..., Any]
-SiteFactory = Callable[..., Any]
+ProviderFactory = Callable[..., Any]
 
 
 def execute(
@@ -32,7 +32,7 @@ def execute(
     dry_run: bool = False,
     headed: bool = False,
     browser_factory: BrowserFactory = BrowserSession,
-    site_factory: SiteFactory = NaukriSite,
+    provider_factory: ProviderFactory = create_provider,
 ) -> RunResult:
     try:
         config.validate(require_resume=True)
@@ -52,7 +52,7 @@ def execute(
                 dry_run=dry_run,
                 headed=headed,
                 browser_factory=browser_factory,
-                site_factory=site_factory,
+                provider_factory=provider_factory,
             )
     except AlreadyRunningError:
         return _finish(
@@ -69,7 +69,7 @@ def _execute_locked(
     dry_run: bool,
     headed: bool,
     browser_factory: BrowserFactory,
-    site_factory: SiteFactory,
+    provider_factory: ProviderFactory,
 ) -> RunResult:
     session: Any = None
     artifact_dir: Path | None = None
@@ -81,9 +81,13 @@ def _execute_locked(
             timeout_seconds=config.timeout_seconds,
         ) as session:
             try:
-                site = site_factory(session.page, timeout_seconds=config.timeout_seconds)
-                site.open_profile()
-                site.inspect_resume_section()
+                provider = provider_factory(
+                    config.provider,
+                    session.page,
+                    timeout_seconds=config.timeout_seconds,
+                )
+                provider.open_profile()
+                provider.inspect_resume_section()
                 if dry_run:
                     return _finish(
                         RunResult.create(
@@ -94,11 +98,11 @@ def _execute_locked(
                         paths,
                     )
 
-                site.upload_resume(config.resume_path.expanduser())
+                provider.upload_resume(config.resume_path.expanduser())
                 return _finish(
                     RunResult.create(
                         Outcome.SUCCESS,
-                        "resume upload was verified by the Naukri profile UI",
+                        "resume upload was verified by the portal profile UI",
                     ),
                     config,
                     paths,
@@ -112,13 +116,13 @@ def _execute_locked(
     except AuthenticationRequired:
         result = RunResult.create(
             Outcome.AUTH_REQUIRED,
-            "login is required; run 'naukri-auto login --headed'",
+            "login is required; run 'resume-auto login --headed'",
             artifact_dir,
         )
     except SiteContractError:
         result = RunResult.create(
             Outcome.SITE_CHANGED,
-            "the Naukri profile page no longer matches the expected contract",
+            "the portal profile page no longer matches the expected contract",
             artifact_dir,
         )
     except UploadVerificationError:

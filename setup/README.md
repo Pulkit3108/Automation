@@ -5,13 +5,13 @@ Complete the platform installation first:
 - [Windows](windows.md)
 - [macOS and Linux](macos-linux.md)
 
-The commands below are shared across supported operating systems. Run them inside the activated
-project virtual environment.
+The commands below are shared across supported operating systems after pipx installation. They work
+from any terminal; no virtual-environment activation is required.
 
 ## 1. Create A Profile
 
 ```text
-naukri-auto profile create personal --username you@example.com --resume /absolute/path/resume.pdf
+resume-auto profile create personal --provider naukri --username you@example.com --resume /absolute/path/resume.pdf
 ```
 
 On Windows, use a quoted Windows path such as `"C:\Users\you\Documents\resume.pdf"`. The command
@@ -22,13 +22,13 @@ The first profile becomes the default. With multiple profiles, pass `--profile <
 default:
 
 ```text
-naukri-auto profile default personal
+resume-auto profile default personal
 ```
 
 ## 2. Check Readiness
 
 ```text
-naukri-auto doctor --profile personal
+resume-auto doctor --profile personal
 ```
 
 `doctor` checks Python, configuration, managed résumé, keyring, Playwright, browser launch, native
@@ -37,7 +37,7 @@ scheduler availability, and local data paths. It does not log in, upload, or sen
 ## 3. Establish Login
 
 ```text
-naukri-auto login --profile personal
+resume-auto login --profile personal
 ```
 
 The command reuses a dedicated browser profile, fills and submits a recognized login form, and
@@ -48,7 +48,7 @@ save a private local screenshot and Playwright trace.
 ## 4. Perform A Dry Run
 
 ```text
-naukri-auto run --profile personal --dry-run --headed
+resume-auto run --profile personal --dry-run --headed
 ```
 
 The dry run confirms authentication and the résumé control, then stops before file selection or
@@ -57,26 +57,26 @@ upload.
 ## 5. Perform One Controlled Upload
 
 ```text
-naukri-auto run --profile personal --headed
+resume-auto run --profile personal --headed
 ```
 
 Success requires new UI evidence: a success message, a newly appearing filename, or changed update
-evidence. Do not retry when the outcome is unknown; inspect Naukri and the local artifacts first.
+evidence. Do not retry when the outcome is unknown; inspect the portal and local artifacts first.
 
 ## Update Profile Data
 
 ```text
 # Change login email or username
-naukri-auto profile edit personal --username new-login@example.com
+resume-auto profile edit personal --username new-login@example.com
 
 # Replace the password through a hidden prompt
-naukri-auto credentials update --profile personal
+resume-auto credentials update --profile personal
 
 # Import and select a new résumé
-naukri-auto resume add /absolute/path/new-resume.pdf --profile personal --select
+resume-auto resume add /absolute/path/new-resume.pdf --profile personal --select
 
 # Inspect the sanitized profile summary
-naukri-auto profile show personal
+resume-auto profile show personal
 ```
 
 Use `resume list`, `resume select`, and `resume remove` to manage inactive copies. Passwords are
@@ -88,15 +88,15 @@ Times use the local 24-hour `HH:MM` clock. Omitting `--days` means every day.
 
 ```text
 # Replace all rules: every day at 09:00 and 18:00
-naukri-auto schedule set --profile personal --times 09:00,18:00
+resume-auto schedule set --profile personal --times 09:00,18:00
 
 # Add selected-day rules
-naukri-auto schedule add --profile personal --days MON,WED,FRI --times 13:30
-naukri-auto schedule add --profile personal --days SUN --times 10:15
+resume-auto schedule add --profile personal --days MON,WED,FRI --times 13:30
+resume-auto schedule add --profile personal --days SUN --times 10:15
 
 # Review and install once
-naukri-auto schedule list --profile personal
-naukri-auto schedule install --profile personal
+resume-auto schedule list --profile personal
+resume-auto schedule install --profile personal
 ```
 
 Rules may use any combination of `MON,TUE,WED,THU,FRI,SAT,SUN`. Overlapping occurrences are
@@ -105,15 +105,15 @@ rejected. A profile supports up to 48 native triggers.
 Inspect the compact status by default, or request native diagnostics:
 
 ```text
-naukri-auto schedule show --profile personal
-naukri-auto schedule show --profile personal --verbose
+resume-auto schedule show --profile personal
+resume-auto schedule show --profile personal --verbose
 ```
 
 `schedule run-now` performs a real upload and should be used only as an intentional controlled
 write. Stop future runs without deleting the profile by removing the native job:
 
 ```text
-naukri-auto schedule remove --profile personal
+resume-auto schedule remove --profile personal
 ```
 
 The configured rules remain available and can be installed again later.
@@ -148,7 +148,7 @@ changes a verified upload into a failure.
 ## Remove A Profile Completely
 
 ```text
-naukri-auto profile remove personal
+resume-auto profile remove personal
 ```
 
 After confirmation, this removes the native scheduler job, keyring credential, managed résumé

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.browser_session import BrowserSession
+from resume_automation.browser_session import BrowserSession
 
 
 class BrowserSessionTests(unittest.TestCase):
@@ -16,7 +16,7 @@ class BrowserSessionTests(unittest.TestCase):
             timeout_seconds=10,
         )
 
-        with patch("naukri_automation.browser_session.sys.platform", "win32"):
+        with patch("resume_automation.browser_session.sys.platform", "win32"):
             options = session._launch_options()
 
         self.assertIs(options["chromium_sandbox"], True)
@@ -29,7 +29,7 @@ class BrowserSessionTests(unittest.TestCase):
             timeout_seconds=10,
         )
 
-        with patch("naukri_automation.browser_session.sys.platform", "linux"):
+        with patch("resume_automation.browser_session.sys.platform", "linux"):
             options = session._launch_options()
 
         self.assertNotIn("chromium_sandbox", options)

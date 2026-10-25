@@ -4,15 +4,15 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-from naukri_automation.config import (
+from resume_automation.config import (
     ConfigurationError,
     ScheduleConfig,
     ScheduleRule,
     load_config,
     write_config,
 )
-from naukri_automation.paths import ProfilePaths
-from naukri_automation.scheduling import scheduler_for_profile
+from resume_automation.paths import ProfilePaths
+from resume_automation.scheduling import scheduler_for_profile
 
 
 def add_schedule_parser(

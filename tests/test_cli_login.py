@@ -5,10 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.cli import _login
-from naukri_automation.config import AppConfig, write_config
-from naukri_automation.naukri_site import AuthState
-from naukri_automation.paths import ProfilePaths
+from resume_automation.cli import _login
+from resume_automation.config import AppConfig, write_config
+from resume_automation.paths import ProfilePaths
+from resume_automation.providers.base import AuthState
 
 
 class _FakeBrowserSession:
@@ -36,10 +36,10 @@ class LoginCommandTests(unittest.TestCase):
             site.wait_for_auth_state.return_value = AuthState.AUTHENTICATED
 
             with (
-                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
-                patch("naukri_automation.cli.BrowserSession", return_value=session),
-                patch("naukri_automation.cli.NaukriSite", return_value=site),
-                patch("naukri_automation.cli.CredentialStore.get") as get_password,
+                patch("resume_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("resume_automation.cli.BrowserSession", return_value=session),
+                patch("resume_automation.cli.create_provider", return_value=site),
+                patch("resume_automation.cli.CredentialStore.get") as get_password,
                 patch("builtins.input") as prompt,
             ):
                 result = _login(paths.config_file, paths, "personal")
@@ -56,10 +56,10 @@ class LoginCommandTests(unittest.TestCase):
             site.wait_for_auth_state.return_value = AuthState.LOGIN_REQUIRED
 
             with (
-                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
-                patch("naukri_automation.cli.BrowserSession", return_value=session),
-                patch("naukri_automation.cli.NaukriSite", return_value=site),
-                patch("naukri_automation.cli.CredentialStore.get", return_value=None),
+                patch("resume_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("resume_automation.cli.BrowserSession", return_value=session),
+                patch("resume_automation.cli.create_provider", return_value=site),
+                patch("resume_automation.cli.CredentialStore.get", return_value=None),
                 patch("builtins.input", return_value=""),
             ):
                 result = _login(paths.config_file, paths, "personal")
@@ -77,10 +77,10 @@ class LoginCommandTests(unittest.TestCase):
             site.wait_for_login_result.return_value = AuthState.AUTHENTICATED
 
             with (
-                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
-                patch("naukri_automation.cli.BrowserSession", return_value=session),
-                patch("naukri_automation.cli.NaukriSite", return_value=site),
-                patch("naukri_automation.cli.CredentialStore.get", return_value="secret"),
+                patch("resume_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("resume_automation.cli.BrowserSession", return_value=session),
+                patch("resume_automation.cli.create_provider", return_value=site),
+                patch("resume_automation.cli.CredentialStore.get", return_value="secret"),
                 patch("builtins.input") as prompt,
             ):
                 result = _login(paths.config_file, paths, "personal")
@@ -100,10 +100,10 @@ class LoginCommandTests(unittest.TestCase):
             site.wait_for_login_result.return_value = AuthState.INVALID_CREDENTIALS
 
             with (
-                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
-                patch("naukri_automation.cli.BrowserSession", return_value=session),
-                patch("naukri_automation.cli.NaukriSite", return_value=site),
-                patch("naukri_automation.cli.CredentialStore.get", return_value="wrong"),
+                patch("resume_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("resume_automation.cli.BrowserSession", return_value=session),
+                patch("resume_automation.cli.create_provider", return_value=site),
+                patch("resume_automation.cli.CredentialStore.get", return_value="wrong"),
                 patch("builtins.input") as prompt,
             ):
                 result = _login(paths.config_file, paths, "personal")
@@ -120,9 +120,9 @@ class LoginCommandTests(unittest.TestCase):
             site.wait_for_auth_state.return_value = AuthState.UNKNOWN
 
             with (
-                patch("naukri_automation.cli.sys.stdin.isatty", return_value=True),
-                patch("naukri_automation.cli.BrowserSession", return_value=session),
-                patch("naukri_automation.cli.NaukriSite", return_value=site),
+                patch("resume_automation.cli.sys.stdin.isatty", return_value=True),
+                patch("resume_automation.cli.BrowserSession", return_value=session),
+                patch("resume_automation.cli.create_provider", return_value=site),
                 patch("builtins.input") as prompt,
             ):
                 result = _login(paths.config_file, paths, "personal")

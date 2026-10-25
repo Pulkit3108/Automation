@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import re
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from resume_automation.providers.base import (
+    AuthenticationRequired,
+    AuthState,
+    SiteContractError,
+    UploadVerificationError,
+)
 
 LOGIN_URL = "https://www.naukri.com/nlogin/login"
 PROFILE_URL = "https://www.naukri.com/mnjuser/profile"
@@ -34,27 +40,7 @@ UPDATE_EVIDENCE_SELECTOR = (
 )
 
 
-class AuthState(StrEnum):
-    AUTHENTICATED = "AUTHENTICATED"
-    LOGIN_REQUIRED = "LOGIN_REQUIRED"
-    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
-    CHALLENGE_REQUIRED = "CHALLENGE_REQUIRED"
-    UNKNOWN = "UNKNOWN"
-
-
-class AuthenticationRequired(RuntimeError):
-    pass
-
-
-class SiteContractError(RuntimeError):
-    pass
-
-
-class UploadVerificationError(RuntimeError):
-    pass
-
-
-class NaukriSite:
+class NaukriProvider:
     def __init__(self, page: Any, *, timeout_seconds: int) -> None:
         self.page = page
         self.timeout_ms = timeout_seconds * 1000

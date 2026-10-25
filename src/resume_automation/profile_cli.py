@@ -5,10 +5,10 @@ import getpass
 import subprocess
 from pathlib import Path
 
-from naukri_automation.config import AppConfig, ConfigurationError
-from naukri_automation.credentials import CredentialStore
-from naukri_automation.paths import AppPaths, ProfilePaths
-from naukri_automation.profile_store import (
+from resume_automation.config import SUPPORTED_PROVIDERS, AppConfig, ConfigurationError
+from resume_automation.credentials import CredentialStore
+from resume_automation.paths import AppPaths, ProfilePaths
+from resume_automation.profile_store import (
     create_profile,
     import_resume,
     list_profiles,
@@ -22,8 +22,8 @@ from naukri_automation.profile_store import (
     set_default_profile,
     update_profile,
 )
-from naukri_automation.run_lock import AlreadyRunningError, RunLock
-from naukri_automation.scheduling import SchedulerError, scheduler_for_profile
+from resume_automation.run_lock import AlreadyRunningError, RunLock
+from resume_automation.scheduling import SchedulerError, scheduler_for_profile
 
 
 def add_management_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -31,6 +31,7 @@ def add_management_parsers(commands: argparse._SubParsersAction[argparse.Argumen
     profile_commands = profile.add_subparsers(dest="profile_command", required=True)
     create = profile_commands.add_parser("create")
     create.add_argument("name")
+    create.add_argument("--provider", choices=SUPPORTED_PROVIDERS, default="naukri")
     create.add_argument("--username")
     create.add_argument("--resume", type=Path)
     profile_commands.add_parser("list")
@@ -95,7 +96,10 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         for name in profiles:
             marker = "*" if name == default else " "
             config = load_profile(paths, name, require_resume=False)
-            print(f"{marker} {name}: {config.username} ({config.resume_path.name})")
+            print(
+                f"{marker} {name}: {config.provider} / {config.username} "
+                f"({config.resume_path.name})"
+            )
         return 0
 
     if args.profile_command == "default":
@@ -107,14 +111,17 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         return _remove_profile_command(args, paths)
 
     if args.profile_command == "create":
-        username = args.username or _prompt("Naukri username")
+        username = args.username or _prompt(f"{args.provider.title()} username")
         resume = args.resume or Path(_prompt("Résumé path"))
-        password = getpass.getpass("Naukri password (stored in OS keyring): ")
+        password = getpass.getpass(
+            f"{args.provider.title()} password (stored in OS keyring): "
+        )
         if not password:
             raise ConfigurationError("password cannot be empty")
         config, profile_paths = create_profile(
             paths,
             name=args.name,
+            provider=args.provider,
             username=username,
             resume_source=resume,
         )
@@ -123,7 +130,7 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         except ConfigurationError as error:
             raise ConfigurationError(
                 f"profile {config.profile_name} was created, but its credential was not stored; "
-                "run 'naukri-auto credentials update' after fixing the OS keyring"
+                "run 'resume-auto credentials update' after fixing the OS keyring"
             ) from error
         if len(list_profiles(paths)) == 1:
             set_default_profile(paths, config.profile_name)
@@ -195,7 +202,8 @@ def _show_profile(config: AppConfig, paths: ProfilePaths) -> int:
     scheduled = _schedule_state(config.profile_name)
 
     print(f"Profile:             {config.profile_name}")
-    print(f"Naukri username:     {config.username}")
+    print(f"Provider:            {config.provider}")
+    print(f"Username:            {config.username}")
     print(f"Credentials stored:  {credentials}")
     print(f"Active résumé:       {config.resume_path.name}")
     print(f"Résumé path:         {config.resume_path}")
@@ -219,7 +227,7 @@ def _credentials_command(args: argparse.Namespace, profile_name: str) -> int:
         removed = store.remove(profile_name)
         print("Credential removed." if removed else "No credential was stored.")
         return 0
-    password = getpass.getpass("New Naukri password (stored in OS keyring): ")
+    password = getpass.getpass("New portal password (stored in OS keyring): ")
     store.set(profile_name, password)
     print("Credential updated.")
     return 0

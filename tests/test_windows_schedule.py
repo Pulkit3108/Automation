@@ -9,8 +9,8 @@ from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess
 from unittest.mock import patch
 
-from naukri_automation.config import ScheduleConfig, ScheduleRule
-from naukri_automation.scheduling.windows import (
+from resume_automation.config import ScheduleConfig, ScheduleRule
+from resume_automation.scheduling.windows import (
     TASK_NAMESPACE,
     SchedulerError,
     WindowsScheduler,
@@ -71,7 +71,7 @@ class WindowsScheduleTests(unittest.TestCase):
         )
         self.assertIsNotNone(root.find(".//task:ScheduleByDay", namespaces=NS))
         arguments = root.findtext(".//task:Arguments", namespaces=NS)
-        self.assertIn("-m naukri_automation", arguments or "")
+        self.assertIn("-m resume_automation", arguments or "")
         self.assertTrue(xml.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)))
         self.assertIn("encoding='utf-16'", xml.decode("utf-16"))
         self.assertNotIn(b"SYSTEM", xml.upper())
@@ -106,7 +106,7 @@ class WindowsScheduleTests(unittest.TestCase):
 
         arguments = root.findtext(".//task:Arguments", namespaces=NS)
         self.assertEqual(
-            '-m naukri_automation run --profile "personal"',
+            '-m resume_automation run --profile "personal"',
             arguments,
         )
 
@@ -117,7 +117,7 @@ class WindowsScheduleTests(unittest.TestCase):
             stdout="workstation\\person\n",
             stderr="",
         )
-        with patch("naukri_automation.scheduling.windows.subprocess.run", return_value=completed):
+        with patch("resume_automation.scheduling.windows.subprocess.run", return_value=completed):
             self.assertEqual(r"workstation\person", WindowsScheduler.current_user_id())
 
     def test_scheduler_error_includes_native_stderr(self) -> None:
@@ -127,8 +127,8 @@ class WindowsScheduleTests(unittest.TestCase):
             stderr="ERROR: The task XML is invalid.",
         )
         with (
-            patch("naukri_automation.scheduling.windows.sys.platform", "win32"),
-            patch("naukri_automation.scheduling.windows.subprocess.run", side_effect=failure),
+            patch("resume_automation.scheduling.windows.sys.platform", "win32"),
+            patch("resume_automation.scheduling.windows.subprocess.run", side_effect=failure),
             self.assertRaisesRegex(SchedulerError, "task XML is invalid"),
             tempfile.TemporaryDirectory() as directory,
         ):
@@ -137,7 +137,7 @@ class WindowsScheduleTests(unittest.TestCase):
     def test_scheduler_install_writes_xml_bytes_unchanged(self) -> None:
         payload = codecs.BOM_UTF16_LE + '<Task />'.encode("utf-16-le")
         with (
-            patch("naukri_automation.scheduling.windows.sys.platform", "win32"),
+            patch("resume_automation.scheduling.windows.sys.platform", "win32"),
             tempfile.TemporaryDirectory() as directory,
         ):
             scheduler = WindowsScheduler()
@@ -154,15 +154,15 @@ class WindowsScheduleTests(unittest.TestCase):
             self.assertFalse(task_path.exists())
 
     def test_compact_show_formats_only_relevant_status(self) -> None:
-        with patch("naukri_automation.scheduling.windows.sys.platform", "win32"):
-            scheduler = WindowsScheduler(task_name="NaukriResumeAutomation-personal")
-        native = '"\\NaukriResumeAutomation-personal","25-10-2026 09:00:00","Ready"'
+        with patch("resume_automation.scheduling.windows.sys.platform", "win32"):
+            scheduler = WindowsScheduler(task_name="ResumeAutomation-personal")
+        native = '"\\ResumeAutomation-personal","25-10-2026 09:00:00","Ready"'
 
         with patch.object(scheduler, "_run", return_value=native) as run:
             output = scheduler.show()
 
         self.assertEqual(
-            "Task: \\NaukriResumeAutomation-personal\n"
+            "Task: \\ResumeAutomation-personal\n"
             "Status: Ready\n"
             "Next run: 25-10-2026 09:00:00",
             output,
@@ -170,18 +170,18 @@ class WindowsScheduleTests(unittest.TestCase):
         run.assert_called_once_with(
             "/Query",
             "/TN",
-            "NaukriResumeAutomation-personal",
+            "ResumeAutomation-personal",
             "/FO",
             "CSV",
             "/NH",
         )
 
     def test_verbose_show_preserves_native_output(self) -> None:
-        with patch("naukri_automation.scheduling.windows.sys.platform", "win32"):
+        with patch("resume_automation.scheduling.windows.sys.platform", "win32"):
             scheduler = WindowsScheduler()
         with patch.object(scheduler, "_run", return_value="native details") as run:
             self.assertEqual("native details", scheduler.show(verbose=True))
-        run.assert_called_once_with("/Query", "/TN", "NaukriResumeAutomation", "/V", "/FO", "LIST")
+        run.assert_called_once_with("/Query", "/TN", "ResumeAutomation", "/V", "/FO", "LIST")
 
 
 if __name__ == "__main__":

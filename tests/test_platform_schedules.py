@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from naukri_automation.config import ScheduleConfig, ScheduleRule
-from naukri_automation.scheduling.linux import LinuxScheduler, _calendar_expressions
-from naukri_automation.scheduling.macos import MacOSScheduler, _calendar_intervals
+from resume_automation.config import ScheduleConfig, ScheduleRule
+from resume_automation.scheduling.linux import LinuxScheduler, _calendar_expressions
+from resume_automation.scheduling.macos import MacOSScheduler, _calendar_intervals
 
 
 class PlatformScheduleTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class PlatformScheduleTests(unittest.TestCase):
             scheduler = MacOSScheduler("personal", home=root, uid=501)
             with (
                 patch.object(scheduler, "_run", return_value=""),
-                patch("naukri_automation.scheduling.macos.subprocess.run"),
+                patch("resume_automation.scheduling.macos.subprocess.run"),
             ):
                 scheduler.install_schedule(
                     self.schedule,
@@ -58,7 +58,7 @@ class PlatformScheduleTests(unittest.TestCase):
                 )
 
             payload = plistlib.loads(scheduler.plist_path.read_bytes())
-            self.assertEqual("com.naukri-resume-automation.personal", payload["Label"])
+            self.assertEqual("com.resumeautomation.personal", payload["Label"])
             self.assertEqual(6, len(payload["StartCalendarInterval"]))
             self.assertEqual("personal", payload["ProgramArguments"][-1])
 
@@ -77,10 +77,10 @@ class PlatformScheduleTests(unittest.TestCase):
 
             service = scheduler.service_path.read_text(encoding="utf-8")
             timer = scheduler.timer_path.read_text(encoding="utf-8")
-            self.assertIn("-m naukri_automation run --profile personal", service)
+            self.assertIn("-m resume_automation run --profile personal", service)
             self.assertIn("OnCalendar=Mon,Wed,Fri *-*-* 13:30:00", timer)
             self.assertIn("Persistent=false", timer)
-            run.assert_any_call("enable", "--now", "naukri-resume-automation-personal.timer")
+            run.assert_any_call("enable", "--now", "resume-automation-personal.timer")
 
 
 if __name__ == "__main__":

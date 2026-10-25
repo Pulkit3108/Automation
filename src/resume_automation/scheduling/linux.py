@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from naukri_automation.config import ScheduleConfig
-from naukri_automation.scheduling.base import SchedulerError
+from resume_automation.config import ScheduleConfig
+from resume_automation.scheduling.base import SchedulerError
 
 WEEKDAYS = {
     "MON": "Mon",
@@ -18,8 +18,13 @@ WEEKDAYS = {
 
 
 class LinuxScheduler:
-    def __init__(self, profile_name: str, *, home: Path | None = None) -> None:
-        self.base_name = f"naukri-resume-automation-{profile_name}"
+    def __init__(
+        self,
+        profile_name: str,
+        *,
+        home: Path | None = None,
+    ) -> None:
+        self.base_name = f"resume-automation-{profile_name}"
         self.unit_dir = (home or Path.home()) / ".config/systemd/user"
         self.service_path = self.unit_dir / f"{self.base_name}.service"
         self.timer_path = self.unit_dir / f"{self.base_name}.timer"
@@ -38,14 +43,14 @@ class LinuxScheduler:
         service = "\n".join(
             [
                 "[Unit]",
-                f"Description=Naukri resume automation for profile {profile_name}",
+                f"Description=Resume automation for profile {profile_name}",
                 "",
                 "[Service]",
                 "Type=oneshot",
                 f"WorkingDirectory={_quote(working_directory.resolve())}",
                 (
                     f"ExecStart={_quote(python_executable.resolve())} "
-                    f"-m naukri_automation run --profile {profile_name}"
+                    f"-m resume_automation run --profile {profile_name}"
                 ),
                 "",
             ]
@@ -54,7 +59,7 @@ class LinuxScheduler:
         timer = "\n".join(
             [
                 "[Unit]",
-                f"Description=Naukri resume automation timer for profile {profile_name}",
+                f"Description=Resume automation timer for profile {profile_name}",
                 "",
                 "[Timer]",
                 *calendar_lines,

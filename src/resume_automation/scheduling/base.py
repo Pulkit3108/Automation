@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from naukri_automation.config import ScheduleConfig
+from resume_automation.config import ScheduleConfig
 
 
 class SchedulerError(RuntimeError):

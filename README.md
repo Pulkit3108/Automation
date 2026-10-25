@@ -1,12 +1,15 @@
-# Naukri Resume Automation
+# Resume Automation
 
-A cross-platform Python CLI that safely updates a managed résumé on a Naukri profile and exits.
+A cross-platform Python CLI that safely updates a managed résumé on a configured job-portal profile
+and exits. Naukri is the first provider; additional portals can be added behind the provider
+contract without changing profile, scheduling, credential, result, or browser lifecycle code.
 Native operating-system schedulers provide persistent execution without keeping a Python daemon or
 browser process running all day.
 
 ## What It Provides
 
 - isolated named profiles with separate credentials, résumés, browser sessions, logs, and schedules;
+- explicit portal-provider selection with isolated provider-specific browser behavior;
 - passwords stored only in Windows Credential Manager, macOS Keychain, or a secure Linux keyring;
 - interactive login with automatic recognized-form submission and manual CAPTCHA/MFA handling;
 - side-effect-free readiness checks and dry runs;
@@ -37,6 +40,8 @@ Choose the operating-system guide:
 
 After installation, use the shared [profile, upload, scheduling, update, and cleanup workflow](setup/README.md).
 
+For upgrades or removal, see [install, update, and uninstall](setup/install-update.md).
+
 ## Documentation
 
 | Document | Scope |
@@ -44,13 +49,15 @@ After installation, use the shared [profile, upload, scheduling, update, and cle
 | [Setup and usage](setup/README.md) | Cross-platform commands and lifecycle |
 | [Windows setup](setup/windows.md) | Native Python, PowerShell, and Task Scheduler |
 | [macOS and Linux setup](setup/macos-linux.md) | Keyring, `launchd`, and systemd user setup |
+| [Install, update, and uninstall](setup/install-update.md) | pipx application lifecycle |
 | [Design](DESIGN.md) | Architecture, safety invariants, concurrency, and resource lifecycle |
+| [Contributing](CONTRIBUTING.md) | Clone-based development and verification |
 | [Agent instructions](AGENTS.md) | Repository maintenance and verification rules |
 | [Example configuration](config.example.toml) | Generated profile configuration shape |
 
 ## Safety Summary
 
-- A real `run` changes the remote Naukri profile; use `--dry-run` before the first upload on a
+- A real `run` changes the configured remote portal profile; use `--dry-run` before the first upload on a
   machine or account.
 - CAPTCHA and MFA are always manual and are never bypassed.
 - Passwords never belong in source, TOML, environment files, command arguments, logs, or
@@ -58,19 +65,6 @@ After installation, use the shared [profile, upload, scheduling, update, and cle
 - An upload is successful only after the profile UI supplies new post-upload evidence.
 - An unknown upload outcome is never retried automatically.
 - Browser profiles, cookies, résumés, logs, screenshots, traces, and results remain outside Git.
-
-## Development Verification
-
-```bash
-python -m pip install -e '.[dev]'
-ruff check .
-pytest
-python -m pip check
-npx --yes markdownlint-cli2 README.md DESIGN.md AGENTS.md setup/*.md
-```
-
-The automated suite uses test doubles and does not access live Naukri, browsers, OS keyrings, native
-schedulers, notifications, or user data.
 
 ## License
 

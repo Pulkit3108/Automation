@@ -6,9 +6,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from naukri_automation import __version__
-from naukri_automation.config import NotificationConfig
-from naukri_automation.result import RunResult
+from resume_automation import __version__
+from resume_automation.config import NotificationConfig
+from resume_automation.result import RunResult
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def send_notification(config: NotificationConfig, result: RunResult) -> bool:
         data=(json.dumps(payload) + "\n").encode("utf-8"),
         headers={
             "Content-Type": "application/json",
-            "User-Agent": f"naukri-resume-automation/{__version__}",
+            "User-Agent": f"resume-automation/{__version__}",
         },
         method="POST",
     )

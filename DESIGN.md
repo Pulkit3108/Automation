@@ -1,8 +1,10 @@
-# Naukri Resume Automation Design
+# Resume Automation Design
 
 ## Purpose
 
-The application performs a verified one-shot résumé update against one configured Naukri profile.
+The application performs a verified one-shot résumé update against one configured job-portal
+profile. Naukri is the first provider implementation; the core workflow depends only on the portal
+provider contract.
 Manual and scheduled entry points use the same workflow. Native operating-system schedulers own
 timing; the Python application never remains resident as a scheduling daemon.
 
@@ -66,7 +68,8 @@ close browser context and release lock
 | `config.py` | Typed configuration, schedule rules, validation, and TOML rendering |
 | `credentials.py` | OS-keyring access without plaintext fallback |
 | `browser_session.py` | Playwright lifecycle, persistent browser data, tracing, and cleanup |
-| `naukri_site.py` | Naukri URLs, selectors, authentication classification, and upload evidence |
+| `providers/base.py` | Portal contract, authentication states, and shared provider errors |
+| `providers/naukri.py` | Naukri URLs, selectors, authentication classification, and upload evidence |
 | `workflow.py` | Locked dry-run/upload state machine and stable results |
 | `run_lock.py` | Per-profile mutual exclusion and dead-owner recovery |
 | `result.py` | Stable outcomes, exit codes, and atomic result persistence |
@@ -74,14 +77,28 @@ close browser context and release lock
 | `scheduling/base.py` | Shared native scheduler contract and errors |
 | `scheduling/` platform modules | Windows, macOS, and Linux job generation and management |
 
-Naukri-specific page behavior stays in `naukri_site.py`; platform scheduler behavior stays in the
-matching scheduler module. Core profile and workflow code remains platform-neutral.
+Portal-specific page behavior stays under `providers/`; platform scheduler behavior stays in the
+matching scheduler module. Core profile, credentials, workflow, results, notifications, and
+scheduling remain provider-neutral.
+
+## Adding A Portal Provider
+
+A new portal should require only additive work:
+
+1. implement `PortalProvider` in `providers/<name>.py`;
+2. register the identifier in `SUPPORTED_PROVIDERS` and `create_provider`;
+3. add provider-focused selector, authentication, dry-run, and upload-verification tests;
+4. document only provider-specific prerequisites or limitations.
+
+Do not branch the workflow, credential store, profile lifecycle, scheduler, result model, or browser
+lifecycle by provider unless the shared contract demonstrably cannot express a required behavior.
 
 ## Profile And Local Data Model
 
 Each named profile owns:
 
 - username or email;
+- portal provider identifier;
 - one selected managed résumé plus optional inactive managed copies;
 - browser channel and headed/headless preference;
 - timeout, retention, size, notification, and schedule settings;
@@ -189,7 +206,7 @@ contents, or full page bodies.
 ## Repository Layout
 
 ```text
-Automation/
+  resume-automation/
   AGENTS.md
   DESIGN.md
   README.md
@@ -199,12 +216,12 @@ Automation/
     README.md
     windows.md
     macos-linux.md
-  src/naukri_automation/
+  CONTRIBUTING.md
+  src/resume_automation/
     browser_session.py
     cli.py
     config.py
     credentials.py
-    naukri_site.py
     notifications.py
     paths.py
     profile_cli.py
@@ -213,6 +230,9 @@ Automation/
     result.py
     run_lock.py
     workflow.py
+    providers/
+      base.py
+      naukri.py
     scheduling/
       base.py
       windows.py

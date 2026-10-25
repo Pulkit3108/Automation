@@ -9,26 +9,27 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from naukri_automation import __version__
-from naukri_automation.browser_session import BrowserDependencyError, BrowserSession
-from naukri_automation.config import AppConfig, ConfigurationError, load_config
-from naukri_automation.credentials import CredentialStore
-from naukri_automation.naukri_site import AuthState, NaukriSite
-from naukri_automation.paths import AppPaths, ProfilePaths, get_app_paths
-from naukri_automation.profile_cli import add_management_parsers, handle_management_command
-from naukri_automation.profile_store import resolve_profile_name
-from naukri_automation.run_lock import AlreadyRunningError, RunLock
-from naukri_automation.schedule_cli import add_schedule_parser, handle_schedule
-from naukri_automation.scheduling import SchedulerError
-from naukri_automation.workflow import execute
+from resume_automation import __version__
+from resume_automation.browser_session import BrowserDependencyError, BrowserSession
+from resume_automation.config import AppConfig, ConfigurationError, load_config
+from resume_automation.credentials import CredentialStore
+from resume_automation.paths import AppPaths, ProfilePaths, get_app_paths
+from resume_automation.profile_cli import add_management_parsers, handle_management_command
+from resume_automation.profile_store import resolve_profile_name
+from resume_automation.providers import create_provider
+from resume_automation.providers.base import AuthState
+from resume_automation.run_lock import AlreadyRunningError, RunLock
+from resume_automation.schedule_cli import add_schedule_parser, handle_schedule
+from resume_automation.scheduling import SchedulerError
+from resume_automation.workflow import execute
 
 LOGGER = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="naukri-auto",
-        description="Safely update a Naukri resume from a scheduled one-shot command.",
+        prog="resume-auto",
+        description="Safely update a configured job-portal résumé in one verified run.",
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--verbose", action="store_true")
@@ -38,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = commands.add_parser("doctor", help="run side-effect-free local readiness checks")
     doctor.add_argument("--profile")
-    login = commands.add_parser("login", help="open a headed browser for interactive Naukri login")
+    login = commands.add_parser("login", help="open a headed browser for portal login")
     login.add_argument("--profile")
     login.add_argument("--headed", action="store_true", help=argparse.SUPPRESS)
 
@@ -204,9 +205,13 @@ def _login(
             headless=False,
             timeout_seconds=config.timeout_seconds,
         ) as session:
-            site = NaukriSite(session.page, timeout_seconds=config.timeout_seconds)
-            site.open_login()
-            initial_state = site.wait_for_auth_state()
+            provider = create_provider(
+                config.provider,
+                session.page,
+                timeout_seconds=config.timeout_seconds,
+            )
+            provider.open_login()
+            initial_state = provider.wait_for_auth_state()
             if initial_state == AuthState.AUTHENTICATED:
                 print("Already authenticated; the dedicated browser profile is ready.")
                 return 0
@@ -214,35 +219,38 @@ def _login(
                 password = CredentialStore().get(profile_name)
                 if not password:
                     print(
-                        "No stored password is available. Run: naukri-auto credentials update "
+                        "No stored password is available. Run: resume-auto credentials update "
                         f"--profile {profile_name}"
                     )
                     return 3
-                if site.fill_login(config.username, password):
-                    if not site.submit_login():
+                if provider.fill_login(config.username, password):
+                    if not provider.submit_login():
                         LOGGER.warning("login button was not found for profile %s", profile_name)
                         print("The login button was not found; the site contract may have changed.")
                         return 3
-                    result = site.wait_for_login_result()
+                    result = provider.wait_for_login_result()
                     if result == AuthState.AUTHENTICATED:
                         LOGGER.info("login succeeded for profile %s", profile_name)
                         print("Login confirmed; the dedicated browser profile is ready.")
                         return 0
                     if result == AuthState.INVALID_CREDENTIALS:
                         LOGGER.warning(
-                            "Naukri rejected stored login credentials for profile %s",
+                            "%s rejected stored login credentials for profile %s",
+                            config.provider,
                             profile_name,
                         )
-                        print("Naukri rejected the stored email or password.")
                         print(
-                            "Update password: naukri-auto credentials update "
+                            f"{config.provider.title()} rejected the stored username or password."
+                        )
+                        print(
+                            "Update password: resume-auto credentials update "
                             f"--profile {profile_name}"
                         )
                         print(
-                            "Update email: naukri-auto profile edit "
+                            "Update username: resume-auto profile edit "
                             f"{profile_name} --username <login>"
                         )
-                        print(f"Log: {paths.logs / 'naukri-auto.log'}")
+                        print(f"Log: {paths.logs / 'resume-auto.log'}")
                         return 3
                     if result == AuthState.CHALLENGE_REQUIRED:
                         LOGGER.info("manual login challenge required for profile %s", profile_name)
@@ -256,7 +264,7 @@ def _login(
                             "Login did not reach a recognized result before the timeout; "
                             "inspect the browser and local log."
                         )
-                        print(f"Log: {paths.logs / 'naukri-auto.log'}")
+                        print(f"Log: {paths.logs / 'resume-auto.log'}")
                         _capture_login_failure(session, paths)
                         return 3
                 else:
@@ -270,15 +278,15 @@ def _login(
                 print("Complete CAPTCHA or MFA manually in the browser.")
                 input("Press Enter after the profile is visible...")
             elif initial_state == AuthState.INVALID_CREDENTIALS:
-                print("Naukri is already showing an invalid-credential error.")
+                print(f"{config.provider.title()} is showing an invalid-credential error.")
                 print(
-                    "Update password: naukri-auto credentials update "
+                    "Update password: resume-auto credentials update "
                     f"--profile {profile_name}"
                 )
                 return 3
             else:
                 LOGGER.warning("initial login page was not identified for profile %s", profile_name)
-                print("Could not identify the Naukri login page; stopping safely.")
+                print("Could not identify the portal login page; stopping safely.")
                 _capture_login_failure(session, paths)
                 return 3
             if session.page.is_closed():
@@ -288,8 +296,8 @@ def _login(
                 )
                 return 3
             try:
-                site.open_profile()
-                state = site.wait_for_auth_state()
+                provider.open_profile()
+                state = provider.wait_for_auth_state()
             except Exception as error:
                 if type(error).__name__ == "TargetClosedError":
                     print(
@@ -315,13 +323,13 @@ def _capture_login_failure(session: BrowserSession, paths: ProfilePaths) -> None
     artifact_dir = paths.artifacts / f"login-{timestamp}"
     session.capture_failure(artifact_dir)
     print(f"Artifacts: {artifact_dir}")
-    print(f"Log: {paths.logs / 'naukri-auto.log'}")
+    print(f"Log: {paths.logs / 'resume-auto.log'}")
 
 
 def _configure_logging(paths: AppPaths | ProfilePaths, *, verbose: bool) -> None:
     paths.logs.mkdir(parents=True, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
-        paths.logs / "naukri-auto.log",
+        paths.logs / "resume-auto.log",
         maxBytes=1_000_000,
         backupCount=5,
         encoding="utf-8",

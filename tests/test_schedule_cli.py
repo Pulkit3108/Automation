@@ -7,10 +7,10 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.cli import build_parser
-from naukri_automation.paths import AppPaths
-from naukri_automation.profile_store import create_profile, load_profile
-from naukri_automation.schedule_cli import handle_schedule
+from resume_automation.cli import build_parser
+from resume_automation.paths import AppPaths
+from resume_automation.profile_store import create_profile, load_profile
+from resume_automation.schedule_cli import handle_schedule
 
 
 class ScheduleCliTests(unittest.TestCase):
@@ -89,7 +89,7 @@ class ScheduleCliTests(unittest.TestCase):
             )
 
             with patch(
-                "naukri_automation.schedule_cli.scheduler_for_profile",
+                "resume_automation.schedule_cli.scheduler_for_profile",
                 return_value=scheduler,
             ):
                 compact = io.StringIO()

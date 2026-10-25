@@ -5,12 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from naukri_automation.cli import build_parser
-from naukri_automation.config import ConfigurationError
-from naukri_automation.credentials import SERVICE_NAME, CredentialStore
-from naukri_automation.paths import AppPaths
-from naukri_automation.profile_cli import handle_management_command
-from naukri_automation.profile_store import (
+from resume_automation.cli import build_parser
+from resume_automation.config import ConfigurationError
+from resume_automation.credentials import SERVICE_NAME, CredentialStore
+from resume_automation.paths import AppPaths
+from resume_automation.profile_cli import handle_management_command
+from resume_automation.profile_store import (
     create_profile,
     import_resume,
     list_profiles,
@@ -59,14 +59,15 @@ class ProfileTests(unittest.TestCase):
             )
 
             with (
-                patch("naukri_automation.profile_cli.getpass.getpass", return_value="secret"),
-                patch("naukri_automation.profile_cli.CredentialStore", return_value=store),
+                patch("resume_automation.profile_cli.getpass.getpass", return_value="secret"),
+                patch("resume_automation.profile_cli.CredentialStore", return_value=store),
             ):
                 result = handle_management_command(args, paths)
 
             self.assertEqual(0, result)
             self.assertTrue(store.has("personal"))
             self.assertEqual("personal", resolve_profile_name(paths, None))
+            self.assertEqual("naukri", load_profile(paths, "personal").provider)
 
     def test_profile_owns_managed_resumes_and_default_selection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -135,9 +136,9 @@ class ProfileTests(unittest.TestCase):
             )
 
             with (
-                patch("naukri_automation.profile_cli.CredentialStore", return_value=store),
+                patch("resume_automation.profile_cli.CredentialStore", return_value=store),
                 patch(
-                    "naukri_automation.profile_cli.scheduler_for_profile",
+                    "resume_automation.profile_cli.scheduler_for_profile",
                     return_value=scheduler,
                 ),
             ):

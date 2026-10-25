@@ -5,10 +5,10 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from naukri_automation.config import AppConfig
-from naukri_automation.paths import AppPaths
-from naukri_automation.result import Outcome
-from naukri_automation.workflow import execute
+from resume_automation.config import AppConfig
+from resume_automation.paths import AppPaths
+from resume_automation.result import Outcome
+from resume_automation.workflow import execute
 
 
 class FakeBrowser:
@@ -43,6 +43,12 @@ class FakeSite:
         return resume_path.name
 
 
+def fake_provider_factory(provider: str, page: object, **kwargs: Any) -> FakeSite:
+    if provider != "naukri":
+        raise AssertionError(f"unexpected provider: {provider}")
+    return FakeSite(page, **kwargs)
+
+
 class WorkflowTests(unittest.TestCase):
     def setUp(self) -> None:
         FakeSite.upload_called = False
@@ -56,7 +62,7 @@ class WorkflowTests(unittest.TestCase):
                 paths,
                 dry_run=True,
                 browser_factory=FakeBrowser,
-                site_factory=FakeSite,
+                provider_factory=fake_provider_factory,
             )
 
             self.assertEqual(Outcome.DRY_RUN_SUCCESS, result.outcome)
@@ -70,7 +76,7 @@ class WorkflowTests(unittest.TestCase):
                 config,
                 paths,
                 browser_factory=FakeBrowser,
-                site_factory=FakeSite,
+                provider_factory=fake_provider_factory,
             )
 
             self.assertEqual(Outcome.SUCCESS, result.outcome)

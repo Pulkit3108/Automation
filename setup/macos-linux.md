@@ -1,18 +1,46 @@
-# macOS And Linux Setup
+# macOS And Linux Installation
 
-Use Python 3.12 or newer and an installed Chrome browser. macOS uses Keychain and a per-user
-`launchd` agent. Linux requires a Secret Service-compatible keyring and uses `systemd --user`.
+Install Resume Automation as an isolated user-level CLI with `pipx`. The `resume-auto` command then
+works from any terminal without activating a virtual environment.
 
-## Install
+## Requirements
 
-Run from the repository root:
+- Python 3.12 or newer
+- Google Chrome by default
+- macOS Keychain or a Linux Secret Service-compatible keyring
+- `launchd` on macOS or a working `systemd --user` session on Linux
+
+## Install pipx
+
+macOS with Homebrew:
 
 ```bash
-python3 --version
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+brew install pipx
+pipx ensurepath
+```
+
+Ubuntu 23.04 or newer:
+
+```bash
+sudo apt update
+sudo apt install pipx
+pipx ensurepath
+```
+
+Fedora:
+
+```bash
+sudo dnf install pipx
+pipx ensurepath
+```
+
+Close and reopen the terminal once so the updated `PATH` is loaded.
+
+## Install Resume Automation
+
+```bash
+pipx install --python 3.12 git+https://github.com/Pulkit3108/resume-automation.git
+resume-auto --version
 ```
 
 Continue with the shared [profile and usage workflow](README.md).
@@ -22,56 +50,44 @@ Continue with the shared [profile and usage workflow](README.md).
 `schedule install` writes a per-user LaunchAgent under:
 
 ```text
-~/Library/LaunchAgents/com.naukri-resume-automation.<profile>.plist
+~/Library/LaunchAgents/com.resumeautomation.<profile>.plist
 ```
 
-The agent is loaded into the signed-in GUI session. Scheduler stdout and stderr are written to the
-profile log directory. A locked screen or inactive display is supported; sign in after reboot so
-Keychain and the browser profile are available.
+The signed-in GUI session owns the job. Scheduler stdout and stderr go to the profile log directory.
+A locked screen or inactive display is supported. Events missed while powered off are skipped.
 
 ## Linux Scheduling
 
 `schedule install` writes per-user service and timer units under:
 
 ```text
-~/.config/systemd/user/naukri-resume-automation-<profile>.service
-~/.config/systemd/user/naukri-resume-automation-<profile>.timer
+~/.config/systemd/user/resume-automation-<profile>.service
+~/.config/systemd/user/resume-automation-<profile>.timer
 ```
 
-The timer is enabled immediately and uses non-catch-up calendar rules, so times missed while the
-machine is powered off are skipped. Application output remains in the profile's rotating log;
-native unit diagnostics are available through `schedule show --verbose` or the user journal. A
-graphical signed-in session is normally required for Secret Service and the dedicated browser
-profile.
+The non-catch-up timer is enabled immediately. A graphical signed-in session is normally required
+for Secret Service and the dedicated browser profile.
 
 ## Browser Choice
 
-The default `chrome` channel uses installed Google Chrome. Select installed Edge where supported or
-use Playwright-managed Chromium explicitly:
+The default `chrome` channel uses installed Google Chrome. To use managed Chromium instead:
 
 ```text
-naukri-auto profile edit personal --browser-channel chromium
+resume-auto profile edit personal --browser-channel chromium
 python -m playwright install chromium
 ```
 
-macOS desktop launches explicitly enable Chromium sandboxing. Linux retains Playwright's platform
-default because container and distribution sandbox requirements vary.
+macOS explicitly enables Chromium sandboxing. Linux retains Playwright's platform default because
+container and distribution requirements vary.
 
-## Update An Existing Checkout
-
-```bash
-git pull --ff-only
-source .venv/bin/activate
-python -m pip install -e .
-naukri-auto doctor --profile personal
-```
-
-## macOS And Linux Troubleshooting
+## Troubleshooting
 
 - Secure credential storage unavailable on Linux: configure a Secret Service-compatible keyring;
-  the application will not fall back to plaintext.
-- Chrome launch fails: install the selected browser channel or use managed Chromium as shown above.
-- Scheduler unavailable: confirm `launchctl` on macOS or a working `systemctl --user` session on
-  Linux, then rerun `doctor`.
-- Scheduled run fails: inspect the compact schedule status and profile log before requesting native
-  verbose diagnostics.
+  the application never falls back to plaintext.
+- Chrome launch fails: install the selected channel or use managed Chromium.
+- Scheduler unavailable: confirm `launchctl` on macOS or `systemctl --user` on Linux, then rerun
+  `doctor`.
+- Scheduled run fails: inspect compact status and the profile log before requesting native verbose
+  diagnostics.
+
+See [install, update, and uninstall](install-update.md) for lifecycle commands.
