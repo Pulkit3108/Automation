@@ -12,7 +12,7 @@ class BrowserSessionTests(unittest.TestCase):
         session = BrowserSession(
             Path("/tmp/profile"),
             browser_channel="chrome",
-            headless=True,
+            browser_mode="headless",
             timeout_seconds=10,
         )
 
@@ -25,7 +25,7 @@ class BrowserSessionTests(unittest.TestCase):
         session = BrowserSession(
             Path("/tmp/profile"),
             browser_channel="chrome",
-            headless=True,
+            browser_mode="headless",
             timeout_seconds=10,
         )
 
@@ -38,7 +38,7 @@ class BrowserSessionTests(unittest.TestCase):
         session = BrowserSession(
             Path("/tmp/profile"),
             browser_channel="chrome",
-            headless=True,
+            browser_mode="headless",
             timeout_seconds=10,
         )
         session.context = MagicMock()
@@ -51,6 +51,19 @@ class BrowserSessionTests(unittest.TestCase):
         session.__exit__(None, None, None)
 
         self.assertFalse(session._tracing)
+
+    def test_background_mode_uses_headed_offscreen_window(self) -> None:
+        session = BrowserSession(
+            Path("/tmp/profile"),
+            browser_channel="chrome",
+            browser_mode="background",
+            timeout_seconds=10,
+        )
+
+        options = session._launch_options()
+
+        self.assertIs(options["headless"], False)
+        self.assertIn("--window-position=-32000,-32000", options["args"])
 
 
 if __name__ == "__main__":

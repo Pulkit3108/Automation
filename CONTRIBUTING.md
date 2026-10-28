@@ -32,7 +32,7 @@ ruff check .
 pytest
 python -m unittest discover -s tests -v
 python -m pip check
-npx --yes markdownlint-cli2 README.md DESIGN.md AGENTS.md CONTRIBUTING.md setup/*.md
+npx --yes markdownlint-cli2 README.md DESIGN.md CONTRIBUTING.md setup/*.md
 ```
 
 Default tests use test doubles and must not contact live job portals, browsers, keyrings, native

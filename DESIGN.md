@@ -8,15 +8,14 @@ provider contract.
 Manual and scheduled entry points use the same workflow. Native operating-system schedulers own
 timing; the Python application never remains resident as a scheduling daemon.
 
-User installation and commands belong in [`setup/`](setup/README.md). Repository-maintenance rules
-belong in [`AGENTS.md`](AGENTS.md). This document owns architecture and durable design decisions.
+User installation and commands belong in [`setup/`](setup/README.md). This document owns
+architecture and durable design decisions.
 
 ## Core Principles
 
 - Validate configuration and the managed résumé before opening a browser.
 - Keep credentials exclusively in the OS keyring.
 - Reuse private browser session data without keeping a browser process alive.
-- Treat CAPTCHA and MFA as manual challenges and never bypass them.
 - Stop before upload during a dry run.
 - Report success only after new post-upload UI evidence appears.
 - Never retry an upload whose outcome is unknown.
@@ -100,7 +99,7 @@ Each named profile owns:
 - username or email;
 - portal provider identifier;
 - one selected managed résumé plus optional inactive managed copies;
-- browser channel and headed/headless preference;
+- browser channel and background, headed, or headless mode;
 - timeout, retention, size, notification, and schedule settings;
 - an OS-keyring entry keyed by profile name;
 - a dedicated browser-data directory, log, result, artifacts, and lock;
@@ -121,6 +120,7 @@ The login flow classifies the page as:
 - login required;
 - invalid credentials;
 - visible CAPTCHA/MFA challenge;
+- portal access denied;
 - unknown contract.
 
 A recognized form may be filled and submitted from the keyring. Hidden CAPTCHA markup does not
@@ -163,8 +163,8 @@ BOM.
 
 Installed jobs survive terminal closure and reboot. The user session must be signed in so the
 keyring and dedicated browser profile are available. Screen lock and display sleep do not prevent a
-headless run. A powered-off machine cannot execute work, and missed times are skipped rather than
-replayed after startup.
+background run. A powered-off machine cannot execute work, and missed times are skipped rather
+than replayed after startup.
 
 ## Concurrency And Resource Lifecycle
 
@@ -192,6 +192,7 @@ Stable outcomes are:
 - `DRY_RUN_SUCCESS`
 - `CONFIG_ERROR`
 - `AUTH_REQUIRED`
+- `ACCESS_DENIED`
 - `SITE_CHANGED`
 - `UPLOAD_FAILED`
 - `NETWORK_ERROR`
@@ -207,7 +208,6 @@ contents, or full page bodies.
 
 ```text
   resume-automation/
-  AGENTS.md
   DESIGN.md
   README.md
   config.example.toml

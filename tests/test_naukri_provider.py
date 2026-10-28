@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from resume_automation.providers.base import AuthState, UploadVerificationError
+from resume_automation.providers.base import (
+    AuthState,
+    PortalAccessDenied,
+    UploadVerificationError,
+)
 from resume_automation.providers.naukri import (
     AUTHENTICATED_SELECTOR,
     CHALLENGE_SELECTOR,
@@ -21,7 +25,7 @@ from resume_automation.providers.naukri import (
 
 
 class NaukriProviderTests(unittest.TestCase):
-    def test_waits_for_authenticated_marker_before_deciding_state(self) -> None:
+    def test_uses_visible_authenticated_marker_without_waiting(self) -> None:
         page = MagicMock()
         page.url = LOGIN_URL
         state_marker = _locator()
@@ -37,7 +41,7 @@ class NaukriProviderTests(unittest.TestCase):
         state = site.wait_for_auth_state()
 
         self.assertEqual(AuthState.AUTHENTICATED, state)
-        state_marker.wait_for.assert_called_once_with(state="attached", timeout=10_000)
+        state_marker.wait_for.assert_not_called()
 
     def test_login_fill_waits_for_both_fields(self) -> None:
         page = MagicMock()
@@ -127,6 +131,29 @@ class NaukriProviderTests(unittest.TestCase):
         site = NaukriProvider(page, timeout_seconds=10)
 
         self.assertEqual(AuthState.LOGIN_REQUIRED, site.auth_state())
+
+    def test_akamai_access_denied_is_classified(self) -> None:
+        page = MagicMock()
+        page.url = PROFILE_URL
+        body = _locator()
+        body.inner_text.return_value = (
+            "Access Denied. You don't have permission to access this page. "
+            "https://errors.edgesuite.net/reference"
+        )
+        page.locator.return_value = body
+        site = NaukriProvider(page, timeout_seconds=10)
+
+        self.assertEqual(AuthState.ACCESS_DENIED, site.auth_state())
+
+    def test_resume_inspection_reports_access_denied(self) -> None:
+        page = MagicMock()
+        site = NaukriProvider(page, timeout_seconds=10)
+
+        with (
+            patch.object(site, "wait_for_auth_state", return_value=AuthState.ACCESS_DENIED),
+            self.assertRaises(PortalAccessDenied),
+        ):
+            site.inspect_resume_section()
 
     def test_wait_for_login_result_is_bounded(self) -> None:
         page = MagicMock()

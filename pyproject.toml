@@ -8,12 +8,12 @@ dynamic = ["version"]
 description = "Cross-platform scheduled resume updates for job portals"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["resume", "automation", "job-portal", "playwright", "scheduler"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
   "Operating System :: Microsoft :: Windows :: Windows 11",
   "Operating System :: POSIX :: Linux",

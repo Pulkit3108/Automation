@@ -41,10 +41,17 @@ def add_management_parsers(commands: argparse._SubParsersAction[argparse.Argumen
     edit.add_argument("name")
     edit.add_argument("--username")
     edit.add_argument("--browser-channel", choices=("chrome", "chromium", "msedge"))
-    headless = edit.add_mutually_exclusive_group()
-    headless.add_argument("--headless", action="store_true", dest="headless")
-    headless.add_argument("--headed", action="store_false", dest="headless")
-    edit.set_defaults(headless=None)
+    browser_mode = edit.add_mutually_exclusive_group()
+    browser_mode.add_argument(
+        "--background", action="store_const", const="background", dest="browser_mode"
+    )
+    browser_mode.add_argument(
+        "--headed", action="store_const", const="headed", dest="browser_mode"
+    )
+    browser_mode.add_argument(
+        "--headless", action="store_const", const="headless", dest="browser_mode"
+    )
+    edit.set_defaults(browser_mode=None)
     default = profile_commands.add_parser("default")
     default.add_argument("name")
     remove = profile_commands.add_parser("remove")
@@ -153,8 +160,8 @@ def _profile_command(args: argparse.Namespace, paths: AppPaths) -> int:
         changes["username"] = args.username.strip()
     if args.browser_channel is not None:
         changes["browser_channel"] = args.browser_channel
-    if args.headless is not None:
-        changes["headless"] = args.headless
+    if args.browser_mode is not None:
+        changes["browser_mode"] = args.browser_mode
 
     if not changes:
         raise ConfigurationError("no profile changes were supplied")
@@ -212,6 +219,7 @@ def _show_profile(config: AppConfig, paths: ProfilePaths) -> int:
     print(f"Active résumé:       {config.resume_path.name}")
     print(f"Résumé path:         {config.resume_path}")
     print(f"Browser channel:     {config.browser_channel}")
+    print(f"Browser mode:        {config.browser_mode}")
     rules = "; ".join(
         f"{','.join(rule.days) if rule.days else 'every day'} at {','.join(rule.times)}"
         for rule in config.schedule.rules

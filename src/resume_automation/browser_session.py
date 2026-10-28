@@ -17,12 +17,12 @@ class BrowserSession:
         profile_dir: Path,
         *,
         browser_channel: str,
-        headless: bool,
+        browser_mode: str,
         timeout_seconds: int,
     ) -> None:
         self.profile_dir = profile_dir
         self.browser_channel = browser_channel
-        self.headless = headless
+        self.browser_mode = browser_mode
         self.timeout_ms = timeout_seconds * 1000
         self._playwright: Any = None
         self.context: Any = None
@@ -66,9 +66,15 @@ class BrowserSession:
     def _launch_options(self) -> dict[str, Any]:
         options: dict[str, Any] = {
             "user_data_dir": self.profile_dir,
-            "headless": self.headless,
+            "headless": self.browser_mode == "headless",
             "accept_downloads": False,
         }
+        if self.browser_mode == "background":
+            options["headless"] = False
+            options["args"] = [
+                "--window-position=-32000,-32000",
+                "--window-size=1280,900",
+            ]
         if self.browser_channel != "chromium":
             options["channel"] = self.browser_channel
         if sys.platform in {"win32", "darwin"}:

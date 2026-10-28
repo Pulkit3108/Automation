@@ -53,7 +53,7 @@ resume-auto run --profile personal --dry-run --headed
 ```
 
 The dry run checks authentication and the résumé control, then stops before selecting or uploading
-a file. Continue only after `DRY_RUN_SUCCESS`.
+a file. `--headed` keeps this first validation visible. Continue only after `DRY_RUN_SUCCESS`.
 
 ## Step 5: Perform One Controlled Upload
 
@@ -117,6 +117,11 @@ resume-auto resume add /absolute/path/new-resume.pdf --profile personal --select
 
 # Inspect the sanitized profile summary
 resume-auto profile show personal
+
+# Choose browser execution mode
+resume-auto profile edit personal --background
+resume-auto profile edit personal --headed
+resume-auto profile edit personal --headless
 ```
 
 Use `resume list`, `resume select`, and `resume remove` to manage inactive copies. Passwords are
@@ -144,12 +149,14 @@ resume-auto schedule install --profile personal
 ## Diagnostics And Resource Behavior
 
 - Native scheduling and a per-profile process lock prevent overlap.
+- Background mode runs a regular rendered browser outside the visible desktop; headed mode remains
+  available for diagnosis, and headless mode remains available for portals that accept it.
 - Each run reuses cookies/session data but creates and closes one browser process and context.
 - Successful traces are discarded; failure artifacts follow the configured retention period.
 - Logs rotate at 1 MB with five backups. Windows jobs have a 30-minute limit.
 - Stable outcomes include `SUCCESS`, `DRY_RUN_SUCCESS`, `CONFIG_ERROR`, `AUTH_REQUIRED`,
-  `SITE_CHANGED`, `UPLOAD_FAILED`, `NETWORK_ERROR`, `ALREADY_RUNNING`, `DEPENDENCY_ERROR`, and
-  `INTERNAL_ERROR`.
+  `ACCESS_DENIED`, `SITE_CHANGED`, `UPLOAD_FAILED`, `NETWORK_ERROR`, `ALREADY_RUNNING`,
+  `DEPENDENCY_ERROR`, and `INTERNAL_ERROR`.
 
 ## Remove A Profile Completely
 

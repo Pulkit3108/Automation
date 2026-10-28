@@ -14,6 +14,7 @@ from resume_automation.paths import AppPaths, ProfilePaths
 from resume_automation.providers import create_provider
 from resume_automation.providers.base import (
     AuthenticationRequired,
+    PortalAccessDenied,
     SiteContractError,
     UploadVerificationError,
 )
@@ -77,7 +78,7 @@ def _execute_locked(
         with browser_factory(
             paths.browser_profile,
             browser_channel=config.browser_channel,
-            headless=False if headed else config.headless,
+            browser_mode="headed" if headed else config.browser_mode,
             timeout_seconds=config.timeout_seconds,
         ) as session:
             try:
@@ -119,6 +120,13 @@ def _execute_locked(
             "login is required; run 'resume-auto login --headed'",
             artifact_dir,
         )
+    except PortalAccessDenied:
+        result = RunResult.create(
+            Outcome.ACCESS_DENIED,
+            "the portal denied this browser session; "
+            "inspect the retained artifacts before retrying",
+            artifact_dir,
+        )
     except SiteContractError:
         result = RunResult.create(
             Outcome.SITE_CHANGED,
@@ -153,6 +161,8 @@ def _finish(
     paths: AppPaths | ProfilePaths,
 ) -> RunResult:
     result.write(paths.last_result)
+    log = LOGGER.info if result.exit_code == 0 else LOGGER.warning
+    log("automation run completed outcome=%s message=%s", result.outcome, result.message)
     send_notification(config.notification, result)
     return result
 

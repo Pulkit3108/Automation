@@ -27,7 +27,7 @@ class ConfigTests(unittest.TestCase):
                 profile_name="personal",
                 username="person@example.test",
                 browser_channel="msedge",
-                headless=False,
+                browser_mode="headed",
                 notification=NotificationConfig(
                     enabled=True,
                     base_url="https://notify.example.test",
@@ -94,6 +94,15 @@ class ConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ConfigurationError, "browser_channel"):
+            config.validate(require_resume=False)
+
+    def test_unknown_browser_mode_is_rejected(self) -> None:
+        config = AppConfig(
+            resume_path=Path("/tmp/resume.pdf"),
+            browser_mode="invisible",
+        )
+
+        with self.assertRaisesRegex(ConfigurationError, "browser_mode"):
             config.validate(require_resume=False)
 
     def test_unknown_provider_is_rejected(self) -> None:

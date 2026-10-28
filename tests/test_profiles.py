@@ -119,6 +119,27 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaisesRegex(ConfigurationError, "active resume"):
                 remove_resume(config, profile_paths, "resume.pdf")
 
+    def test_profile_browser_mode_can_be_changed_to_background(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = AppPaths(root / "config", root / "data")
+            resume = root / "resume.pdf"
+            resume.write_bytes(b"%PDF-test")
+            create_profile(
+                paths,
+                name="personal",
+                username="person@example.test",
+                resume_source=resume,
+            )
+            args = build_parser().parse_args(
+                ["profile", "edit", "personal", "--background"]
+            )
+
+            result = handle_management_command(args, paths)
+
+            self.assertEqual(0, result)
+            self.assertEqual("background", load_profile(paths, "personal").browser_mode)
+
     def test_profile_remove_cleans_scheduler_credential_and_managed_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

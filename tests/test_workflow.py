@@ -7,6 +7,7 @@ from typing import Any
 
 from resume_automation.config import AppConfig
 from resume_automation.paths import AppPaths
+from resume_automation.providers.base import PortalAccessDenied
 from resume_automation.result import Outcome
 from resume_automation.workflow import execute
 
@@ -43,10 +44,21 @@ class FakeSite:
         return resume_path.name
 
 
+class AccessDeniedSite(FakeSite):
+    def inspect_resume_section(self) -> str:
+        raise PortalAccessDenied("blocked")
+
+
 def fake_provider_factory(provider: str, page: object, **kwargs: Any) -> FakeSite:
     if provider != "naukri":
         raise AssertionError(f"unexpected provider: {provider}")
     return FakeSite(page, **kwargs)
+
+
+def access_denied_provider_factory(
+    provider: str, page: object, **kwargs: Any
+) -> AccessDeniedSite:
+    return AccessDeniedSite(page, **kwargs)
 
 
 class WorkflowTests(unittest.TestCase):
@@ -82,6 +94,21 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(Outcome.SUCCESS, result.outcome)
             self.assertTrue(FakeSite.upload_called)
             self.assertTrue(paths.last_result.is_file())
+
+    def test_access_denied_has_distinct_outcome_and_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config, paths = self._fixture(Path(directory))
+
+            result = execute(
+                config,
+                paths,
+                dry_run=True,
+                browser_factory=FakeBrowser,
+                provider_factory=access_denied_provider_factory,
+            )
+
+            self.assertEqual(Outcome.ACCESS_DENIED, result.outcome)
+            self.assertIsNotNone(result.artifact_dir)
 
     @staticmethod
     def _fixture(root: Path) -> tuple[AppConfig, AppPaths]:

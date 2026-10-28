@@ -207,7 +207,7 @@ def _login(
         with RunLock(paths.run_lock), BrowserSession(
             paths.browser_profile,
             browser_channel=config.browser_channel,
-            headless=False,
+            browser_mode="headed",
             timeout_seconds=config.timeout_seconds,
         ) as session:
             provider = create_provider(

@@ -10,6 +10,7 @@ class AuthState(StrEnum):
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     CHALLENGE_REQUIRED = "CHALLENGE_REQUIRED"
+    ACCESS_DENIED = "ACCESS_DENIED"
     UNKNOWN = "UNKNOWN"
 
 
@@ -18,6 +19,10 @@ class AuthenticationRequired(RuntimeError):
 
 
 class SiteContractError(RuntimeError):
+    pass
+
+
+class PortalAccessDenied(RuntimeError):
     pass
 
 

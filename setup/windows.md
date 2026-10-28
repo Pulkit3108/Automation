@@ -52,6 +52,11 @@ The account must be signed in. Locking the screen or turning off the display is 
 missed while powered off is skipped; only the next future trigger runs. Compact status is available
 through `schedule show`; use `schedule show --verbose` only for native diagnostics.
 
+The default `background` browser mode runs regular rendered Chrome outside the visible desktop.
+This avoids a visible or minimized browser while retaining the dedicated persistent profile. Use
+`resume-auto profile edit personal --headed` for visual diagnosis or `--headless` only when the
+configured portal accepts true headless browsing.
+
 ## Troubleshooting
 
 - `pipx` is not recognized after `ensurepath`: close every terminal window and open a new one.
@@ -65,5 +70,7 @@ through `schedule show`; use `schedule show --verbose` only for native diagnosti
   created.
 - Task does not run: remain signed in, inspect compact status and the profile log, then use
   `schedule run-now` only when another real upload is intended.
+- `ACCESS_DENIED`: inspect the retained screenshot and trace. Do not confuse a portal denial page
+  with a changed résumé selector.
 
 See [install, update, and uninstall](install-update.md) for lifecycle commands.

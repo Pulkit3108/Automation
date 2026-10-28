@@ -18,6 +18,7 @@ browser process running all day.
 - native persistent scheduling through Windows Task Scheduler, macOS `launchd`, or Linux
   `systemd --user`;
 - compact status output, opt-in native diagnostics, rotating logs, and bounded failure artifacts;
+- background browser mode that keeps a regular rendered browser outside the visible desktop;
 - confirmed profile cleanup that leaves the repository and original source résumé untouched.
 
 ## Supported Platforms
@@ -52,14 +53,12 @@ For upgrades or removal, see [install, update, and uninstall](setup/install-upda
 | [Install, update, and uninstall](setup/install-update.md) | pipx application lifecycle |
 | [Design](DESIGN.md) | Architecture, safety invariants, concurrency, and resource lifecycle |
 | [Contributing](CONTRIBUTING.md) | Clone-based development and verification |
-| [Agent instructions](AGENTS.md) | Repository maintenance and verification rules |
 | [Example configuration](config.example.toml) | Generated profile configuration shape |
 
 ## Safety Summary
 
 - A real `run` changes the configured remote portal profile; use `--dry-run` before the first upload on a
   machine or account.
-- CAPTCHA and MFA are always manual and are never bypassed.
 - Passwords never belong in source, TOML, environment files, command arguments, logs, or
   notifications.
 - An upload is successful only after the profile UI supplies new post-upload evidence.

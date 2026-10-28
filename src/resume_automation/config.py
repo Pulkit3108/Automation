@@ -13,6 +13,7 @@ ALLOWED_RESUME_SUFFIXES = {".pdf", ".doc", ".docx"}
 DAY_NAMES = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 TOPIC_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 SUPPORTED_BROWSER_CHANNELS = {"chrome", "chromium", "msedge"}
+SUPPORTED_BROWSER_MODES = {"background", "headed", "headless"}
 SUPPORTED_PROVIDERS = ("naukri",)
 MAX_SCHEDULE_TRIGGERS = 48
 
@@ -47,7 +48,7 @@ class AppConfig:
     provider: str = "naukri"
     username: str = "unknown"
     browser_channel: str = "chrome"
-    headless: bool = True
+    browser_mode: str = "background"
     timeout_seconds: int = 45
     artifact_retention_days: int = 14
     max_resume_mb: int = 5
@@ -81,6 +82,8 @@ class AppConfig:
             errors.append("timeout_seconds must be between 10 and 300")
         if self.browser_channel not in SUPPORTED_BROWSER_CHANNELS:
             errors.append("browser_channel must be chrome, chromium, or msedge")
+        if self.browser_mode not in SUPPORTED_BROWSER_MODES:
+            errors.append("browser_mode must be background, headed, or headless")
         if not 1 <= self.artifact_retention_days <= 90:
             errors.append("artifact_retention_days must be between 1 and 90")
         if not 1 <= self.max_resume_mb <= 20:
@@ -152,7 +155,7 @@ def load_config(path: Path | None = None, *, require_resume: bool = True) -> App
         provider=_string(raw, "provider", "naukri").lower(),
         username=_string(raw, "username", "unknown"),
         browser_channel=_string(raw, "browser_channel", "chrome").lower(),
-        headless=_boolean(raw, "headless", True),
+        browser_mode=_string(raw, "browser_mode", "background").lower(),
         timeout_seconds=_integer(raw, "timeout_seconds", 45),
         artifact_retention_days=_integer(raw, "artifact_retention_days", 14),
         max_resume_mb=_integer(raw, "max_resume_mb", 5),
@@ -191,7 +194,7 @@ def render_config(config: AppConfig) -> str:
         f"username = {_toml_string(config.username)}",
         f"resume_path = {_toml_string(str(config.resume_path.expanduser()))}",
         f"browser_channel = {_toml_string(config.browser_channel)}",
-        f"headless = {str(config.headless).lower()}",
+        f"browser_mode = {_toml_string(config.browser_mode)}",
         f"timeout_seconds = {config.timeout_seconds}",
         f"artifact_retention_days = {config.artifact_retention_days}",
         f"max_resume_mb = {config.max_resume_mb}",

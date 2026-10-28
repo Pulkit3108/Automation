@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 from resume_automation.providers.base import (
     AuthenticationRequired,
     AuthState,
+    PortalAccessDenied,
     SiteContractError,
     UploadVerificationError,
 )
@@ -37,6 +39,10 @@ AUTHENTICATED_SELECTOR = (
 )
 UPDATE_EVIDENCE_SELECTOR = (
     '.updateOn, [class*="updateOn"], [class*="resume"] [class*="date"]'
+)
+ACCESS_DENIED_PATTERN = re.compile(
+    r"access denied|(?:do not|don't) have permission to access|errors\.edgesuite\.net",
+    re.IGNORECASE,
 )
 
 
@@ -92,7 +98,7 @@ class NaukriProvider:
     def wait_for_login_result(self) -> AuthState:
         try:
             self.page.wait_for_function(
-                """([authenticated, challenge]) => {
+                r"""([authenticated, challenge]) => {
                     const text = (document.body?.innerText || '').toLowerCase();
                     const visible = (selector) => [...document.querySelectorAll(selector)].some(
                         (element) => {
@@ -105,7 +111,11 @@ class NaukriProvider:
                     const rejected =
                         /(invalid|incorrect|wrong).*(email|e-mail|username|password)/.test(text) ||
                         /(email|e-mail|username|password).*(invalid|incorrect|wrong)/.test(text);
-                    return location.pathname.includes('/mnjuser/profile') ||
+                    const denied =
+                        /access denied/i.test(text) ||
+                        /(?:do not|don't) have permission to access/i.test(text) ||
+                        /errors\.edgesuite\.net/i.test(text);
+                    return location.pathname.includes('/mnjuser/profile') || denied ||
                         visible(authenticated) || visible(challenge) || rejected;
                 }""",
                 arg=[AUTHENTICATED_SELECTOR, CHALLENGE_SELECTOR],
@@ -116,17 +126,20 @@ class NaukriProvider:
         return self.auth_state()
 
     def wait_for_auth_state(self) -> AuthState:
+        state = self.auth_state()
+        if state != AuthState.UNKNOWN:
+            return state
         state_marker = self.page.locator(
             f"{USERNAME_SELECTOR}, {AUTHENTICATED_SELECTOR}"
         ).first
-        try:
+        with suppress(Exception):
             state_marker.wait_for(state="attached", timeout=self.timeout_ms)
-        except Exception:
-            return AuthState.UNKNOWN
         return self.auth_state()
 
     def auth_state(self) -> AuthState:
         current_url = self.page.url.lower()
+        if self._is_access_denied():
+            return AuthState.ACCESS_DENIED
         if self._has_visible(AUTHENTICATED_SELECTOR):
             return AuthState.AUTHENTICATED
         if self._has_invalid_credentials_error():
@@ -139,6 +152,8 @@ class NaukriProvider:
 
     def inspect_resume_section(self) -> str:
         state = self.wait_for_auth_state()
+        if state == AuthState.ACCESS_DENIED:
+            raise PortalAccessDenied("Naukri denied access to the automated browser session")
         if state == AuthState.LOGIN_REQUIRED:
             raise AuthenticationRequired("Naukri login is required")
         if state == AuthState.UNKNOWN:
@@ -230,6 +245,13 @@ class NaukriProvider:
         except Exception:
             return False
         return bool(error_pattern.search(body_text))
+
+    def _is_access_denied(self) -> bool:
+        try:
+            body_text = self.page.locator("body").inner_text()
+        except Exception:
+            return False
+        return isinstance(body_text, str) and bool(ACCESS_DENIED_PATTERN.search(body_text))
 
     def _has_visible(self, selector: str) -> bool:
         locator = self.page.locator(selector)
