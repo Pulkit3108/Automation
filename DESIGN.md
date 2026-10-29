@@ -70,7 +70,7 @@ close browser context and release lock
 | `providers/base.py` | Portal contract, authentication states, and shared provider errors |
 | `providers/naukri.py` | Naukri URLs, selectors, authentication classification, and upload evidence |
 | `workflow.py` | Locked dry-run/upload state machine and stable results |
-| `run_lock.py` | Per-profile mutual exclusion and dead-owner recovery |
+| `run_lock.py` | Per-profile operating-system file lock |
 | `result.py` | Stable outcomes, exit codes, and atomic result persistence |
 | `notifications.py` | Optional best-effort sanitized notification delivery |
 | `scheduling/base.py` | Shared native scheduler contract and errors |
@@ -173,8 +173,9 @@ Two independent controls prevent overlap:
 1. the native scheduler refuses or ignores a second instance for the same job;
 2. the per-profile lock protects manual and scheduled entry points.
 
-A live same-host owner keeps the lock. A dead same-host owner is reclaimed immediately. Unreadable
-or foreign lock metadata expires after the configured stale interval.
+The operating system owns the file lock and releases it when the process exits, including abnormal
+termination. Diagnostic owner metadata remains in the lock file, but PID reuse and stale metadata
+do not affect lock ownership.
 
 Every run starts one browser process and persistent-data context. The process and context close in
 the context-manager cleanup path on success or failure. Cookies and session data persist; browser

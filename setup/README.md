@@ -148,7 +148,8 @@ resume-auto schedule install --profile personal
 
 ## Diagnostics And Resource Behavior
 
-- Native scheduling and a per-profile process lock prevent overlap.
+- Native scheduling and a per-profile operating-system file lock prevent overlap. The operating
+  system releases the lock when a process exits, including after a crash.
 - Background mode runs a regular rendered browser outside the visible desktop; headed mode remains
   available for diagnosis, and headless mode remains available for portals that accept it.
 - Each run reuses cookies/session data but creates and closes one browser process and context.
