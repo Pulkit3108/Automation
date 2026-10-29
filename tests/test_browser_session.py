@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from resume_automation.browser_session import BrowserSession
+from resume_automation.browser_session import BrowserSession, _remove_windows_taskbar_button
 
 
 class BrowserSessionTests(unittest.TestCase):
@@ -64,6 +65,36 @@ class BrowserSessionTests(unittest.TestCase):
 
         self.assertIs(options["headless"], False)
         self.assertIn("--window-position=-32000,-32000", options["args"])
+
+    def test_windows_background_window_is_removed_from_taskbar(self) -> None:
+        show_window = MagicMock()
+        set_window_long = MagicMock()
+        win32con = SimpleNamespace(
+            GWL_EXSTYLE=-20,
+            SW_HIDE=0,
+            SW_SHOWNOACTIVATE=4,
+            WS_EX_APPWINDOW=0x40000,
+            WS_EX_TOOLWINDOW=0x80,
+        )
+        win32gui = SimpleNamespace(
+            EnumWindows=lambda callback, argument: callback(42, argument),
+            GetWindowText=lambda handle: "Resume Automation Background - Google Chrome",
+            GetWindowLong=lambda handle, index: 0x40000,
+            SetWindowLong=set_window_long,
+            ShowWindow=show_window,
+        )
+
+        with patch.dict(
+            "sys.modules",
+            {"win32con": win32con, "win32gui": win32gui},
+        ):
+            _remove_windows_taskbar_button("Resume Automation Background")
+
+        self.assertEqual(
+            [(42, 0), (42, 4)],
+            [call.args for call in show_window.call_args_list],
+        )
+        set_window_long.assert_called_once_with(42, -20, 0x80)
 
 
 if __name__ == "__main__":

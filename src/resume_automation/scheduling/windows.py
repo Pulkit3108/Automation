@@ -81,7 +81,8 @@ def build_task_xml(
 
     actions = ET.SubElement(task, _tag("Actions"), {"Context": "CurrentUser"})
     command = ET.SubElement(actions, _tag("Exec"))
-    ET.SubElement(command, _tag("Command")).text = str(python_executable.resolve())
+    scheduled_python = _windowed_python_executable(python_executable)
+    ET.SubElement(command, _tag("Command")).text = str(scheduled_python.resolve())
     arguments = "-m resume_automation"
     if profile_name is not None:
         arguments += f' run --profile "{profile_name}"'
@@ -201,6 +202,13 @@ def _command_error_detail(error: BaseException) -> str:
         if output:
             return output
     return str(error)
+
+
+def _windowed_python_executable(python_executable: Path) -> Path:
+    if python_executable.name.casefold() != "python.exe":
+        return python_executable
+    candidate = python_executable.with_name("pythonw.exe")
+    return candidate if candidate.is_file() else python_executable
 
 
 def _next_boundary(rule: ScheduleRule, run_time: str, now: datetime) -> datetime:

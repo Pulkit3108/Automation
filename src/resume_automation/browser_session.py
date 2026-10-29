@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
@@ -9,6 +10,9 @@ from typing import Any
 
 class BrowserDependencyError(RuntimeError):
     pass
+
+
+BACKGROUND_WINDOW_TITLE = "Resume Automation Background"
 
 
 class BrowserSession:
@@ -60,7 +64,14 @@ class BrowserSession:
         self.context.set_default_navigation_timeout(self.timeout_ms)
         self.context.tracing.start(screenshots=True, snapshots=True, sources=False)
         self._tracing = True
-        self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+        try:
+            self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+            if self.browser_mode == "background" and sys.platform == "win32":
+                self.page.set_content(f"<title>{BACKGROUND_WINDOW_TITLE}</title>")
+                _remove_windows_taskbar_button(BACKGROUND_WINDOW_TITLE)
+        except Exception:
+            self.__exit__(None, None, None)
+            raise
         return self
 
     def _launch_options(self) -> dict[str, Any]:
@@ -110,3 +121,36 @@ class BrowserSession:
                 pass
             finally:
                 self._tracing = False
+
+
+def _remove_windows_taskbar_button(title: str) -> None:
+    try:
+        import win32con
+        import win32gui
+    except ImportError as error:
+        raise BrowserDependencyError(
+            "Windows background mode requires the pywin32 package"
+        ) from error
+
+    def collect_matching_window(handle: int, state: tuple[str, list[int]]) -> bool:
+        expected_title, matching_handles = state
+        with suppress(Exception):
+            if win32gui.GetWindowText(handle).startswith(expected_title):
+                matching_handles.append(handle)
+        return True
+
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        matches: list[int] = []
+        win32gui.EnumWindows(collect_matching_window, (title, matches))
+        if matches:
+            for handle in matches:
+                win32gui.ShowWindow(handle, win32con.SW_HIDE)
+                style = win32gui.GetWindowLong(handle, win32con.GWL_EXSTYLE)
+                style = (style & ~win32con.WS_EX_APPWINDOW) | win32con.WS_EX_TOOLWINDOW
+                win32gui.SetWindowLong(handle, win32con.GWL_EXSTYLE, style)
+                win32gui.ShowWindow(handle, win32con.SW_SHOWNOACTIVATE)
+            return
+        time.sleep(0.05)
+
+    raise BrowserDependencyError("could not remove the background browser taskbar button")

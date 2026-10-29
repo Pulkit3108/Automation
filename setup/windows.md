@@ -52,10 +52,12 @@ The account must be signed in. Locking the screen or turning off the display is 
 missed while powered off is skipped; only the next future trigger runs. Compact status is available
 through `schedule show`; use `schedule show --verbose` only for native diagnostics.
 
-The default `background` browser mode runs regular rendered Chrome outside the visible desktop.
-This avoids a visible or minimized browser while retaining the dedicated persistent profile. Use
+The default `background` browser mode runs regular rendered Chrome outside the visible desktop and
+marks its window as a Windows tool window so it does not remain in the taskbar. The scheduled task
+uses `pythonw.exe`, which avoids opening a console window. Use
 `resume-auto profile edit personal --headed` for visual diagnosis or `--headless` only when the
-configured portal accepts true headless browsing.
+configured portal accepts true headless browsing. Reinstall the schedule after upgrading from a
+version earlier than 0.2.4 so its action changes from `python.exe` to `pythonw.exe`.
 
 ## Troubleshooting
 

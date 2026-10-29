@@ -156,10 +156,11 @@ the Windows maximum of 48 native triggers.
 | macOS | `~/Library/LaunchAgents` plist | Per-user GUI LaunchAgent |
 | Linux | `~/.config/systemd/user` service and timer | Enabled user timer |
 
-Windows task XML includes the current user, interactive-token logon, least privilege, absolute
-executable and working-directory paths, `IgnoreNew`, battery-safe behavior, optional wake, and a
-30-minute execution limit. Import XML is written as UTF-16 bytes with a matching declaration and
-BOM.
+Windows task XML includes the current user, interactive-token logon, least privilege, an absolute
+`pythonw.exe` path, an absolute working directory, `IgnoreNew`, battery-safe behavior, optional
+wake, and a 30-minute execution limit. Import XML is written as UTF-16 bytes with a matching
+declaration and BOM. Windows background browser windows use the documented tool-window style so
+they do not remain in the taskbar.
 
 Installed jobs survive terminal closure and reboot. The user session must be signed in so the
 keyring and dedicated browser profile are available. Screen lock and display sleep do not prevent a

@@ -110,6 +110,26 @@ class WindowsScheduleTests(unittest.TestCase):
             arguments,
         )
 
+    def test_windows_schedule_uses_windowed_python(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Path(directory)
+            python = runtime / "python.exe"
+            pythonw = runtime / "pythonw.exe"
+            python.touch()
+            pythonw.touch()
+            xml = build_task_xml(
+                ScheduleConfig(rules=(ScheduleRule(times=("09:30",)),)),
+                python_executable=python,
+                user_id=r"workstation\person",
+                profile_name="personal",
+                working_directory=runtime,
+                now=datetime.fromisoformat("2026-09-20T08:00:00+05:30"),
+            )
+
+        root = ET.fromstring(xml)
+        command = root.findtext(".//task:Command", namespaces=NS)
+        self.assertEqual(str(pythonw.resolve()), command)
+
     def test_current_user_id_uses_windows_identity(self) -> None:
         completed = CompletedProcess(
             args=["whoami.exe"],
