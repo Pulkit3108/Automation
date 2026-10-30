@@ -54,7 +54,7 @@ through `schedule show`; use `schedule show --verbose` only for native diagnosti
 
 The default `background` browser mode runs regular rendered Chrome outside the visible desktop and
 marks its window as a Windows tool window so it does not remain in the taskbar. The scheduled task
-uses `pythonw.exe`, which avoids opening a console window. Use
+uses `pythonw.exe`, and Playwright's driver subprocess is created without a console window. Use
 `resume-auto profile edit personal --headed` for visual diagnosis or `--headless` only when the
 configured portal accepts true headless browsing. Reinstall the schedule after upgrading from a
 version earlier than 0.2.4 so its action changes from `python.exe` to `pythonw.exe`.

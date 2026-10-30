@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import subprocess
 import sys
 import time
 from contextlib import suppress
@@ -42,7 +44,10 @@ class BrowserSession:
             ) from error
 
         self.profile_dir.mkdir(parents=True, exist_ok=True)
-        self._playwright = sync_playwright().start()
+        self._playwright = _start_playwright(
+            sync_playwright,
+            hide_driver_console=self.browser_mode == "background" and sys.platform == "win32",
+        )
         try:
             launch_options = self._launch_options()
             self.context = self._playwright.chromium.launch_persistent_context(
@@ -154,3 +159,21 @@ def _remove_windows_taskbar_button(title: str) -> None:
         time.sleep(0.05)
 
     raise BrowserDependencyError("could not remove the background browser taskbar button")
+
+
+def _start_playwright(factory: Any, *, hide_driver_console: bool) -> Any:
+    if not hide_driver_console:
+        return factory().start()
+
+    original_create_subprocess_exec = asyncio.create_subprocess_exec
+    create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+    async def create_hidden_subprocess(*args: Any, **kwargs: Any) -> Any:
+        kwargs["creationflags"] = kwargs.get("creationflags", 0) | create_no_window
+        return await original_create_subprocess_exec(*args, **kwargs)
+
+    asyncio.create_subprocess_exec = create_hidden_subprocess
+    try:
+        return factory().start()
+    finally:
+        asyncio.create_subprocess_exec = original_create_subprocess_exec

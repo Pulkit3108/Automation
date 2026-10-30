@@ -160,7 +160,8 @@ Windows task XML includes the current user, interactive-token logon, least privi
 `pythonw.exe` path, an absolute working directory, `IgnoreNew`, battery-safe behavior, optional
 wake, and a 30-minute execution limit. Import XML is written as UTF-16 bytes with a matching
 declaration and BOM. Windows background browser windows use the documented tool-window style so
-they do not remain in the taskbar.
+they do not remain in the taskbar. Playwright's bundled driver process is created with the Windows
+no-console flag during background startup.
 
 Installed jobs survive terminal closure and reboot. The user session must be signed in so the
 keyring and dedicated browser profile are available. Screen lock and display sleep do not prevent a

@@ -14,7 +14,7 @@ class PackagingTests(unittest.TestCase):
         setuptools = document["tool"]["setuptools"]
 
         self.assertEqual("resume-automation", project["name"])
-        self.assertEqual("0.2.4", __version__)
+        self.assertEqual("0.2.5", __version__)
         self.assertIn("version", project["dynamic"])
         self.assertEqual(
             "resume_automation.__version__",
